@@ -67,14 +67,34 @@ try {
       <div class="chart-wrap"><canvas id="pie"></canvas><p id="chart-empty" class="muted empty-chart hidden"></p></div>
       <div id="legend" class="legend"></div>
     </div>
+    <div class="card filter-card">
+      <input id="flt-q" type="search" data-i18n-placeholder="searchRemark" placeholder="搜索备注" enterkeyhint="search">
+      <div class="sec-head">
+        <button id="filter-toggle" type="button" class="btn small"><span data-i18n="filter">筛选</span> <b id="filter-n"></b></button>
+        <button id="filter-clear" type="button" class="btn small hidden" data-i18n="clearFilters">清除</button>
+      </div>
+      <div id="filters" class="filters hidden">
+        <label for="flt-cat" data-i18n="category">分类</label>
+        <select id="flt-cat"></select>
+        <label for="flt-card" data-i18n="card">银行卡</label>
+        <select id="flt-card"></select>
+        <label for="flt-mem" data-i18n="chartMember">成员</label>
+        <select id="flt-mem"></select>
+        <div class="inline">
+          <div><label for="flt-from" data-i18n="fromDate">开始日期</label><input id="flt-from" type="date"></div>
+          <div><label for="flt-to" data-i18n="toDate">结束日期</label><input id="flt-to" type="date"></div>
+        </div>
+      </div>
+      <p id="filter-sum" class="muted hidden"></p>
+    </div>
     <div id="exp-list"></div>
-    <button id="fab" class="fab" type="button">＋</button>
   </section>
   <section id="page-funds" class="page hidden">
-    <div class="sec-head"><h2 data-i18n="fundsTitle">存款目标</h2><button id="fund-add" class="btn small primary" type="button" data-i18n="fundNew">＋ 新建</button></div>
+    <div class="sec-head"><h2 data-i18n="fundsTitle">存款目标</h2></div>
     <div id="fund-list"></div>
   </section>
   <section id="page-settings" class="page hidden"><div id="settings"></div></section>
+  <button id="fab" class="fab hidden" type="button">＋</button>
   <nav class="tabs">
     <button type="button" data-p="home" class="on"><span class="tab-ico" aria-hidden="true">🏠</span><span data-i18n="tabHome">首页</span></button>
     <button type="button" data-p="funds"><span class="tab-ico" aria-hidden="true">🐷</span><span data-i18n="tabFunds">存款</span></button>
