@@ -1,14 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="fresh">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<meta name="theme-color" content="#10b981">
+<meta name="theme-color" content="#059669">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="记账本">
 <title>记账本</title>
+<script>
+try {
+  var th = localStorage.getItem("pref_theme");
+  if (th === "warm" || th === "dark" || th === "fresh") document.documentElement.setAttribute("data-theme", th);
+  if (localStorage.getItem("pref_lang") === "en") document.documentElement.lang = "en";
+} catch (e) {}
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
@@ -16,35 +23,63 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<div id="boot" class="boot" aria-hidden="true">💰</div>
 <div id="auth" class="auth hidden">
-  <h1>💰 记账本</h1>
-  <input id="au-email" type="email" placeholder="邮箱" autocomplete="email">
-  <input id="au-name" type="text" placeholder="昵称（注册时填写）" class="hidden">
-  <input id="au-pass" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
-  <button id="au-submit" class="btn primary">登录</button>
-  <div class="row-links"><a id="au-toggle">没有账号？注册</a><a id="au-reset">忘记密码</a></div>
-  <p id="au-msg" class="msg"></p>
+  <div class="auth-card">
+    <div class="logo" aria-hidden="true">💰</div>
+    <h1 data-i18n="appName">记账本</h1>
+    <p class="tagline" data-i18n="tagline">一起记账，清清楚楚</p>
+    <div class="lang-switch" id="auth-lang">
+      <button type="button" data-lang="zh">中文</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+    <div class="themes auth-themes" id="auth-theme">
+      <button type="button" class="theme-opt" data-theme-pick="fresh"><i class="swatch fresh"></i></button>
+      <button type="button" class="theme-opt" data-theme-pick="warm"><i class="swatch warm"></i></button>
+      <button type="button" class="theme-opt" data-theme-pick="dark"><i class="swatch dark"></i></button>
+    </div>
+    <input id="au-email" type="email" data-i18n-placeholder="email" placeholder="邮箱" autocomplete="username">
+    <input id="au-name" type="text" data-i18n-placeholder="nickname" placeholder="昵称（注册时填写）" class="hidden" autocomplete="nickname" maxlength="40">
+    <input id="au-pass" type="password" data-i18n-placeholder="password" placeholder="密码（至少 6 位）" autocomplete="current-password">
+    <button id="au-submit" class="btn primary" type="button">登录</button>
+    <div class="row-links"><a id="au-toggle" href="#">没有账号？注册</a><a id="au-reset" href="#">忘记密码</a></div>
+    <p id="au-msg" class="msg"></p>
+  </div>
 </div>
 <div id="main" class="hidden">
-  <header class="topbar"><button id="ws-btn" class="ws-btn">账本 ▾</button></header>
+  <header class="topbar">
+    <button id="me-btn" class="me-btn" type="button"></button>
+    <button id="ws-btn" class="ws-btn" type="button">账本 ▾</button>
+    <span class="top-balance" aria-hidden="true"></span>
+  </header>
   <div id="invites"></div>
   <section id="page-home" class="page">
-    <div class="month-bar"><button id="m-prev">‹</button><span id="m-label"></span><button id="m-next">›</button></div>
+    <div class="card hero">
+      <div class="month-bar"><button id="m-prev" type="button">‹</button><span id="m-label"></span><button id="m-next" type="button">›</button></div>
+      <div class="total"><span data-i18n="monthSpend">本月支出</span><b id="m-total">¥0.00</b><em id="m-code">CNY</em></div>
+    </div>
     <div class="card">
-      <div class="seg" id="chart-mode"><button data-m="cat" class="on">分类</button><button data-m="card">银行卡</button><button data-m="member">成员</button></div>
-      <div class="total">本月支出 <b id="m-total">0.00</b></div>
-      <div class="chart-wrap"><canvas id="pie"></canvas></div>
+      <div class="seg" id="chart-mode">
+        <button type="button" data-m="cat" class="on" data-i18n="chartCat">分类</button>
+        <button type="button" data-m="card" data-i18n="chartCard">银行卡</button>
+        <button type="button" data-m="member" data-i18n="chartMember">成员</button>
+      </div>
+      <div class="chart-wrap"><canvas id="pie"></canvas><p id="chart-empty" class="muted empty-chart hidden"></p></div>
       <div id="legend" class="legend"></div>
     </div>
     <div id="exp-list"></div>
-    <button id="fab" class="fab">＋</button>
+    <button id="fab" class="fab" type="button">＋</button>
   </section>
   <section id="page-funds" class="page hidden">
-    <div class="sec-head"><h2>存款目标</h2><button id="fund-add" class="btn small primary">＋ 新建</button></div>
+    <div class="sec-head"><h2 data-i18n="fundsTitle">存款目标</h2><button id="fund-add" class="btn small primary" type="button" data-i18n="fundNew">＋ 新建</button></div>
     <div id="fund-list"></div>
   </section>
   <section id="page-settings" class="page hidden"><div id="settings"></div></section>
-  <nav class="tabs"><button data-p="home" class="on">🏠<span>首页</span></button><button data-p="funds">🐷<span>存款</span></button><button data-p="settings">⚙️<span>设置</span></button></nav>
+  <nav class="tabs">
+    <button type="button" data-p="home" class="on"><span class="tab-ico" aria-hidden="true">🏠</span><span data-i18n="tabHome">首页</span></button>
+    <button type="button" data-p="funds"><span class="tab-ico" aria-hidden="true">🐷</span><span data-i18n="tabFunds">存款</span></button>
+    <button type="button" data-p="settings"><span class="tab-ico" aria-hidden="true">⚙️</span><span data-i18n="tabSettings">设置</span></button>
+  </nav>
 </div>
 <div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
 <div id="toast" class="toast hidden"></div>

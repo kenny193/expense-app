@@ -11,80 +11,504 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").ca
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const money = (n) => (Number(n) || 0).toFixed(2);
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const today = () => ymd(new Date());
-const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16", "#64748b"];
-const DEFAULT_CATS = ["餐饮", "交通", "购物", "娱乐", "居住", "其他"];
-const toast = (m) => { const t = $("#toast"); t.textContent = m; t.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add("hidden"), 2200); };
-const errMsg = (e) => ({ "auth/invalid-email": "邮箱格式不正确", "auth/email-already-in-use": "该邮箱已注册", "auth/weak-password": "密码至少6位", "auth/invalid-credential": "邮箱或密码错误", "auth/wrong-password": "邮箱或密码错误", "auth/user-not-found": "账号不存在", "auth/too-many-requests": "尝试次数过多，请稍后再试", "auth/network-request-failed": "网络错误", "permission-denied": "没有权限" }[e.code] || e.message);
+const firstChar = (s) => Array.from(String(s || "?").trim())[0] || "?";
 
-const S = { user: null, wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {}, month: new Date(), mode: "cat", page: "home" };
+const CURRENCIES = [
+  { code: "MYR", symbol: "RM", space: true, zh: "马来西亚林吉特", en: "Malaysian Ringgit" },
+  { code: "CNY", symbol: "¥", space: false, zh: "人民币", en: "Chinese Yuan" },
+  { code: "USD", symbol: "$", space: false, zh: "美元", en: "US Dollar" },
+  { code: "SGD", symbol: "S$", space: false, zh: "新加坡元", en: "Singapore Dollar" },
+  { code: "EUR", symbol: "€", space: false, zh: "欧元", en: "Euro" },
+  { code: "MXN", symbol: "MX$", space: false, zh: "墨西哥比索", en: "Mexican Peso" },
+  { code: "BRL", symbol: "R$", space: true, zh: "巴西雷亚尔", en: "Brazilian Real" }
+];
+const PALETTES = {
+  fresh: ["#10b981", "#3b82f6", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16", "#0ea5e9"],
+  warm: ["#fb7185", "#fb923c", "#f59e0b", "#e879f9", "#a78bfa", "#34d399", "#f97316", "#f43f5e", "#22d3ee", "#facc15", "#c084fc"],
+  dark: ["#34d399", "#60a5fa", "#fbbf24", "#fb7185", "#a78bfa", "#f472b6", "#2dd4bf", "#fb923c", "#818cf8", "#a3e635", "#38bdf8"]
+};
+const DEFAULT_CATS = [
+  { zh: "餐饮", en: "Food", icon: "🍜" },
+  { zh: "交通", en: "Transport", icon: "🚌" },
+  { zh: "购物", en: "Shopping", icon: "🛍️" },
+  { zh: "娱乐", en: "Fun", icon: "🎮" },
+  { zh: "居住", en: "Home", icon: "🏠" },
+  { zh: "其他", en: "Other", icon: "📦" }
+];
+const CAT_ICONS = ["🍜", "🍔", "☕", "🧁", "🚌", "🚗", "🚇", "✈️", "⛽", "🏠", "💡", "🛒", "🛍️", "👕", "🎮", "🎬", "🎵", "💊", "📚", "👶", "🐶", "🎁", "📦", "💰", "🧾", "🔧", "🏦", "💅", "🧹", "⚽", "🌳", "💻", "📱", "🏥", "🎓", "🐷", "🏷️"];
+const PRESET_AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦄", "🐙", "🐶", "🐱", "🐻", "🐰", "🐧", "🦋", "🌸", "🍀", "⭐", "🌙", "🔥", "💎", "🌈", "☀️", "🎧", "🚀", "🍕", "⚽"];
+const WK = { zh: ["日", "一", "二", "三", "四", "五", "六"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const I18N_ROWS = [
+  ["appName", "记账本", "Expenses"],
+  ["tagline", "一起记账，清清楚楚", "Shared spending, kept simple"],
+  ["email", "邮箱", "Email"],
+  ["nickname", "昵称（注册时填写）", "Name (for sign up)"],
+  ["password", "密码（至少 6 位）", "Password (6+ characters)"],
+  ["login", "登录", "Log in"],
+  ["register", "注册", "Sign up"],
+  ["noAccount", "没有账号？注册", "New here? Sign up"],
+  ["hasAccount", "已有账号？登录", "Have an account? Log in"],
+  ["forgot", "忘记密码", "Forgot password"],
+  ["wait", "请稍候…", "Please wait…"],
+  ["resetSent", "重置邮件已发送，请查看收件箱和垃圾箱", "Reset email sent. Check inbox and spam."],
+  ["needEmail", "请先输入邮箱", "Enter your email first"],
+  ["tabHome", "首页", "Home"],
+  ["tabFunds", "存款", "Savings"],
+  ["tabSettings", "设置", "Settings"],
+  ["prevMonth", "上个月", "Previous month"],
+  ["nextMonth", "下个月", "Next month"],
+  ["monthSpend", "本月支出", "Spent this month"],
+  ["chartCat", "分类", "Category"],
+  ["chartCard", "银行卡", "Card"],
+  ["chartMember", "成员", "Member"],
+  ["emptyChart", "这个月还没有支出", "No spending this month"],
+  ["emptyMonth", "本月还没有记录，点右下角 ＋ 记一笔", "Nothing this month yet. Tap ＋ to add one."],
+  ["fundsTitle", "存款目标", "Savings goals"],
+  ["fundNew", "＋ 新建", "＋ New"],
+  ["emptyFunds", "还没有存款目标，点「新建」开始存钱吧", "No savings goals yet. Tap New to start one."],
+  ["noWs", "无账本", "No workspace"],
+  ["profile", "个人资料", "Profile"],
+  ["displayName", "昵称", "Display name"],
+  ["language", "语言", "Language"],
+  ["theme", "主题", "Theme"],
+  ["theme_fresh", "清新", "Fresh"],
+  ["theme_warm", "暖色", "Warm"],
+  ["theme_dark", "深色", "Dark"],
+  ["currency", "货币", "Currency"],
+  ["currencyHint", "这个账本里的金额都会按这个货币显示，所有成员看到的一样。", "Everyone in this workspace sees amounts in this currency."],
+  ["wsName", "账本名称", "Workspace name"],
+  ["categories", "分类", "Categories"],
+  ["newCat", "新分类", "New category"],
+  ["cards", "银行卡 / 账户", "Cards & accounts"],
+  ["newCardPh", "如 工资卡", "e.g. Salary card"],
+  ["members", "成员", "Members"],
+  ["owner", "创建者", "Owner"],
+  ["pending", "待接受", "Pending"],
+  ["revoke", "撤销", "Revoke"],
+  ["invitePh", "对方注册用的邮箱", "Their email"],
+  ["invite", "邀请", "Invite"],
+  ["inviteHint", "对方用这个邮箱登录后，顶部会出现邀请，点接受就能一起记账。", "When they sign in with this email, the invite shows at the top."],
+  ["inviteSent", "邀请已发送", "Invite sent"],
+  ["badEmail", "邮箱格式不正确", "That email doesn't look right"],
+  ["alreadyMember", "已经是成员了", "They're already a member"],
+  ["leaveWs", "退出此账本", "Leave workspace"],
+  ["logout", "退出登录", "Log out"],
+  ["add", "添加", "Add"],
+  ["create", "创建", "Create"],
+  ["save", "保存", "Save"],
+  ["saved", "已保存", "Saved"],
+  ["cancel", "取消", "Cancel"],
+  ["delete", "删除", "Delete"],
+  ["remove", "移除", "Remove"],
+  ["close", "关闭", "Close"],
+  ["confirm", "确认", "Confirm"],
+  ["edit", "编辑", "Edit"],
+  ["amount", "金额", "Amount"],
+  ["date", "日期", "Date"],
+  ["category", "分类", "Category"],
+  ["card", "银行卡", "Card"],
+  ["payer", "付款人", "Paid by"],
+  ["remark", "备注", "Note"],
+  ["optional", "可选", "Optional"],
+  ["addExpense", "记一笔", "Add expense"],
+  ["editExpense", "编辑记录", "Edit expense"],
+  ["needAmount", "请输入金额", "Enter an amount"],
+  ["needName", "请输入名称", "Enter a name"],
+  ["needWs", "请先创建账本", "Create a workspace first"],
+  ["created", "已创建", "Created"],
+  ["joined", "已加入", "Joined"],
+  ["switchWs", "切换账本", "Workspaces"],
+  ["newWsPh", "新账本名称，如 旅行", "New workspace, e.g. Trip"],
+  ["people", "{n} 人", "{n} people"],
+  ["editGoal", "编辑目标", "Edit goal"],
+  ["newGoal", "新建存款目标", "New savings goal"],
+  ["goalName", "名称", "Name"],
+  ["goalPh", "如 旅行基金", "e.g. Holiday fund"],
+  ["goalAmount", "目标金额", "Target amount"],
+  ["savedSoFar", "已存 {bal} / 目标 {target}", "Saved {bal} / goal {target}"],
+  ["balanceLine", "余额 {bal} / 目标 {target}", "Balance {bal} / goal {target}"],
+  ["deposit", "存入", "Deposit"],
+  ["withdraw", "取出", "Withdraw"],
+  ["records", "记录", "History"],
+  ["noRecords", "暂无记录", "No records yet"],
+  ["confirmDeleteExpense", "确定删除这笔记录？", "Delete this expense?"],
+  ["confirmDelete", "确定删除？已有记录会显示为未分类或未指定。", "Delete it? Older records will show as uncategorized."],
+  ["confirmDeleteFund", "删除该目标及全部记录？", "Delete this goal and all of its records?"],
+  ["confirmDeleteTxn", "删除这条记录？", "Delete this record?"],
+  ["confirmLeave", "退出后将看不到此账本，确定吗？", "You'll lose access to this workspace. Leave?"],
+  ["confirmLogout", "确定退出登录？", "Log out?"],
+  ["confirmRemove", "移除该成员？", "Remove this member?"],
+  ["personalWs", "个人账本", "Personal"],
+  ["defaultCard", "默认卡", "Default card"],
+  ["uncategorized", "未分类", "Uncategorized"],
+  ["unspecified", "未指定", "Unspecified"],
+  ["unknownMember", "未知成员", "Unknown"],
+  ["someone", "有人", "Someone"],
+  ["nameRequired", "请填写昵称", "Please enter a name"],
+  ["profileSaved", "资料已更新", "Profile saved"],
+  ["photoTooBig", "这张图太大了，请换一张小一点的", "That photo is too large. Try a smaller one."],
+  ["photoFail", "无法读取这张照片，请换一张", "Couldn't read that photo. Try another."],
+  ["changeAvatar", "选择头像", "Choose avatar"],
+  ["uploadPhoto", "上传照片", "Upload photo"],
+  ["removePhoto", "使用字母头像", "Use initial"],
+  ["pickIcon", "选择图标", "Choose icon"],
+  ["accept", "接受", "Accept"],
+  ["decline", "忽略", "Decline"],
+  ["inviteLine", "{name} 邀请你加入「{ws}」", "{name} invited you to “{ws}”"],
+  ["recorded", "已记录", "Recorded"],
+  ["errEmail", "邮箱格式不正确", "That email doesn't look right"],
+  ["errInUse", "该邮箱已注册", "That email is already registered"],
+  ["errWeak", "密码至少 6 位", "Use at least 6 characters"],
+  ["errCred", "邮箱或密码错误", "Email or password is incorrect"],
+  ["errNoUser", "账号不存在", "No account found"],
+  ["errMany", "尝试次数过多，请稍后再试", "Too many attempts. Try again later."],
+  ["errNet", "网络错误", "Network error"],
+  ["errPerm", "没有权限", "You don't have permission"],
+  ["errGeneric", "出错了，请重试", "Something went wrong. Try again."]
+];
+const DICT = { zh: {}, en: {} };
+I18N_ROWS.forEach(([k, zh, en]) => { DICT.zh[k] = zh; DICT.en[k] = en; });
+const ERR = {
+  "auth/invalid-email": "errEmail",
+  "auth/email-already-in-use": "errInUse",
+  "auth/weak-password": "errWeak",
+  "auth/invalid-credential": "errCred",
+  "auth/wrong-password": "errCred",
+  "auth/user-not-found": "errNoUser",
+  "auth/too-many-requests": "errMany",
+  "auth/network-request-failed": "errNet",
+  "permission-denied": "errPerm"
+};
+
+function storedTheme() {
+  try { const th = localStorage.getItem("pref_theme"); if (th === "warm" || th === "dark" || th === "fresh") return th; } catch (e) {}
+  return "fresh";
+}
+function storedLang() {
+  try { if (localStorage.getItem("pref_lang") === "en") return "en"; } catch (e) {}
+  return "zh";
+}
+
+const S = {
+  user: null, profile: { name: "", avatar: "" }, profileReady: false, userDocExists: false,
+  theme: storedTheme(), lang: storedLang(),
+  wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {},
+  month: new Date(), mode: "cat", page: "home"
+};
 let unsubWs = [], unsubData = [], unsubTxns = {}, chart = null;
+let localProfileTouched = false, localThemeTouched = false, localLangTouched = false;
+let pendingCatIcon = "🏷️", regMode = false, registerCreate = false, pendingName = "";
+
 const ws = () => S.wsList.find((w) => w.id === S.wsId);
 const wsRef = (...p) => (p.length ? collection(db, "workspaces", S.wsId, ...p) : doc(db, "workspaces", S.wsId));
-const memberName = (uid) => { const i = ws()?.memberInfo?.[uid]; return i ? i.name || i.email : "未知成员"; };
+const t = (key, vars) => {
+  let s = (DICT[S.lang] && DICT[S.lang][key]) || DICT.zh[key] || key;
+  if (vars) Object.keys(vars).forEach((k) => { s = s.split("{" + k + "}").join(String(vars[k])); });
+  return s;
+};
+const errMsg = (e) => (e && ERR[e.code] ? t(ERR[e.code]) : (e && e.message) || t("errGeneric"));
+const toast = (m) => { const el = $("#toast"); el.textContent = m; el.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.add("hidden"), 2200); };
+const palette = () => PALETTES[S.theme] || PALETTES.fresh;
+const currencyOf = (w) => CURRENCIES.find((c) => c.code === w?.currency) || CURRENCIES[1];
+const money = (n) => {
+  const v = (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+  const parts = v.split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+};
+const fmt = (n) => { const c = currencyOf(ws()); return c.space ? c.symbol + " " + money(n) : c.symbol + money(n); };
+const memberName = (uid) => { const i = ws()?.memberInfo?.[uid]; return (i && (i.name || i.email)) || t("unknownMember"); };
+const memberNameOf = (w, uid) => { const i = w?.memberInfo?.[uid]; return (i && (i.name || i.email)) || t("someone"); };
+const fallbackName = (u = S.user) => (u?.displayName || (u?.email || "").split("@")[0] || t("someone")).slice(0, 40);
+function safeAvatar(a) {
+  if (typeof a !== "string" || a.length > 80000) return "";
+  if (/^emoji:\S{1,24}$/.test(a) && !/[<>&"']/.test(a)) return a;
+  if (/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(a)) return a;
+  return "";
+}
+function safeIcon(s) {
+  if (typeof s !== "string") return "";
+  const v = s.trim();
+  if (!v || v.length > 16 || /[<>&"']/.test(v)) return "";
+  return v;
+}
+function avatarEl(avatar, name, cls = "av") {
+  const a = safeAvatar(avatar);
+  if (a.startsWith("data:image/")) return `<span class="${cls} photo"><img alt="" src="${esc(a)}"></span>`;
+  if (a.startsWith("emoji:")) return `<span class="${cls} emo">${esc(a.slice(6))}</span>`;
+  return `<span class="${cls} letter">${esc(firstChar(name))}</span>`;
+}
+function cacheProfile() {
+  if (!S.user) return;
+  try { localStorage.setItem("pref_profile", JSON.stringify({ uid: S.user.uid, name: S.profile.name || "", avatar: S.profile.avatar || "" })); } catch (e) {}
+}
+function readProfileCache(uid) {
+  try {
+    const p = JSON.parse(localStorage.getItem("pref_profile") || "null");
+    if (p && p.uid === uid) return { name: String(p.name || "").slice(0, 40), avatar: safeAvatar(p.avatar) };
+  } catch (e) {}
+  return null;
+}
+function monthLabel(d) { return S.lang === "en" ? `${MON[d.getMonth()]} ${d.getFullYear()}` : `${d.getFullYear()}年${d.getMonth() + 1}月`; }
+function dayLabel(dStr) {
+  const dt = new Date(dStr + "T00:00:00");
+  return S.lang === "en" ? `${MON[dt.getMonth()]} ${dt.getDate()}, ${WK.en[dt.getDay()]}` : `${dt.getMonth() + 1}月${dt.getDate()}日 周${WK.zh[dt.getDay()]}`;
+}
+
+function updateThemeButtons() {
+  document.querySelectorAll("[data-theme-pick]").forEach((b) => {
+    b.classList.toggle("on", b.dataset.themePick === S.theme);
+    b.setAttribute("aria-label", t("theme_" + b.dataset.themePick));
+  });
+}
+function updateLangButtons() {
+  document.querySelectorAll("#auth-lang [data-lang]").forEach((b) => b.classList.toggle("on", b.dataset.lang === S.lang));
+}
+function refreshAuthTexts() {
+  $("#au-submit").textContent = regMode ? t("register") : t("login");
+  $("#au-toggle").textContent = regMode ? t("hasAccount") : t("noAccount");
+  $("#au-reset").textContent = t("forgot");
+}
+function applyI18n() {
+  document.documentElement.lang = S.lang === "en" ? "en" : "zh-CN";
+  document.title = t("appName");
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  refreshAuthTexts();
+  updateLangButtons();
+  updateThemeButtons();
+  const me = $("#me-btn"); if (me) me.setAttribute("aria-label", t("profile"));
+  const fab = $("#fab"); if (fab) fab.setAttribute("aria-label", t("addExpense"));
+  const prev = $("#m-prev"); if (prev) prev.setAttribute("aria-label", t("prevMonth"));
+  const next = $("#m-next"); if (next) next.setAttribute("aria-label", t("nextMonth"));
+}
+function chartBorder() {
+  return getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#fff";
+}
+function setTheme(theme, persist) {
+  const next = theme === "warm" || theme === "dark" ? theme : "fresh";
+  const changed = S.theme !== next;
+  S.theme = next;
+  document.documentElement.setAttribute("data-theme", S.theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--theme-color").trim();
+  if (meta && c) meta.setAttribute("content", c);
+  const bar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (bar) bar.setAttribute("content", S.theme === "dark" ? "black" : "default");
+  updateThemeButtons();
+  if (persist) {
+    try { localStorage.setItem("pref_theme", S.theme); } catch (e) {}
+    if (S.user) { localThemeTouched = true; pushUserDoc(); }
+  }
+  if ((changed || persist) && S.user && S.page === "home") renderHome();
+}
+function setLang(lang, persist) {
+  const next = lang === "en" ? "en" : "zh";
+  const changed = S.lang !== next;
+  S.lang = next;
+  document.documentElement.lang = S.lang === "en" ? "en" : "zh-CN";
+  if (persist) {
+    try { localStorage.setItem("pref_lang", S.lang); } catch (e) {}
+    if (S.user) { localLangTouched = true; pushUserDoc(); }
+  }
+  applyI18n();
+  if (changed || persist) renderAll();
+}
+function pushUserDoc() {
+  if (!S.user || !S.profileReady || !S.profile.name) return;
+  const name = S.profile.name.trim().slice(0, 40);
+  if (!name) return;
+  setDoc(doc(db, "users", S.user.uid), {
+    name,
+    avatar: S.profile.avatar || "",
+    theme: S.theme,
+    lang: S.lang
+  }, { merge: true }).catch(() => {});
+}
+function pushMemberInfo(announce) {
+  if (!S.user || !S.profile.name) return;
+  const info = { email: (S.user.email || "").toLowerCase(), name: S.profile.name.trim().slice(0, 40), avatar: S.profile.avatar || "" };
+  S.wsList.forEach((w) => {
+    const cur = w.memberInfo?.[S.user.uid] || {};
+    if ((cur.email || "") === info.email && (cur.name || "") === info.name && safeAvatar(cur.avatar) === info.avatar) return;
+    updateDoc(doc(db, "workspaces", w.id), { [`memberInfo.${S.user.uid}`]: info }).catch((e) => { if (announce) toast(errMsg(e)); });
+  });
+}
+function maybeMirror() {
+  if (!S.user || !S.profileReady || !S.profile.name) return;
+  if (!S.userDocExists && !localProfileTouched) return;
+  pushMemberInfo(false);
+}
+function adoptWorkspaceProfile() {
+  if (!S.user || localProfileTouched || S.userDocExists) return;
+  const infos = S.wsList.map((w) => w.memberInfo?.[S.user.uid]).filter(Boolean);
+  const named = infos.find((i) => i.name);
+  const withAv = infos.find((i) => safeAvatar(i.avatar));
+  if (named) S.profile.name = String(named.name).slice(0, 40);
+  if (withAv && !S.profile.avatar) S.profile.avatar = safeAvatar(withAv.avatar);
+  if (!S.profile.name) S.profile.name = fallbackName();
+  cacheProfile();
+}
+function saveProfile(patch) {
+  if (!S.user) return;
+  const name = String(patch.name != null ? patch.name : (S.profile.name || fallbackName())).trim().slice(0, 40);
+  if (!name) return toast(t("nameRequired"));
+  const avatar = patch.avatar !== undefined ? safeAvatar(patch.avatar) : (S.profile.avatar || "");
+  const nameChanged = (S.user.displayName || "") !== name;
+  S.profile = { name, avatar };
+  localProfileTouched = true;
+  cacheProfile();
+  if (nameChanged) updateProfile(S.user, { displayName: name }).catch(() => {});
+  pushUserDoc();
+  pushMemberInfo(true);
+  toast(t("profileSaved"));
+  renderTop();
+  if (S.page === "settings") renderSettings();
+}
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type || "")) return reject(new Error("fail"));
+    if (file.size > 12 * 1024 * 1024) return reject(new Error("big"));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const size = 160;
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const side = Math.max(1, Math.min(img.width, img.height));
+      const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+      let q = 0.72, data = canvas.toDataURL("image/jpeg", q);
+      while (data.length > 22000 && q > 0.42) { q = Math.round((q - 0.08) * 100) / 100; data = canvas.toDataURL("image/jpeg", q); }
+      URL.revokeObjectURL(url);
+      if (!safeAvatar(data)) reject(new Error("big")); else resolve(data);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("fail")); };
+    img.src = url;
+  });
+}
+function handleUserDoc(snap) {
+  const prev = S.profile.name + "|" + S.profile.avatar + "|" + S.lang + "|" + S.theme;
+  S.profileReady = true;
+  S.userDocExists = snap.exists();
+  if (snap.exists()) {
+    const d = snap.data() || {};
+    if (!localProfileTouched) {
+      if (typeof d.name === "string" && d.name.trim()) S.profile.name = d.name.trim().slice(0, 40);
+      if (typeof d.avatar === "string") S.profile.avatar = safeAvatar(d.avatar);
+      cacheProfile();
+    }
+    if (!localThemeTouched && (d.theme === "fresh" || d.theme === "warm" || d.theme === "dark")) setTheme(d.theme, false);
+    if (!localLangTouched && (d.lang === "zh" || d.lang === "en")) setLang(d.lang, false);
+  } else if (!localProfileTouched) adoptWorkspaceProfile();
+  if (localThemeTouched || localLangTouched || localProfileTouched) pushUserDoc();
+  maybeMirror();
+  renderTop();
+  const next = S.profile.name + "|" + S.profile.avatar + "|" + S.lang + "|" + S.theme;
+  if (prev !== next || S.page === "home") renderAll();
+}
 
 /* ---------- Auth ---------- */
-let regMode = false;
-$("#au-toggle").onclick = () => { regMode = !regMode; $("#au-name").classList.toggle("hidden", !regMode); $("#au-submit").textContent = regMode ? "注册" : "登录"; $("#au-toggle").textContent = regMode ? "已有账号？登录" : "没有账号？注册"; };
+$("#au-toggle").onclick = (e) => {
+  e.preventDefault();
+  regMode = !regMode;
+  $("#au-name").classList.toggle("hidden", !regMode);
+  $("#au-pass").setAttribute("autocomplete", regMode ? "new-password" : "current-password");
+  refreshAuthTexts();
+};
 $("#au-submit").onclick = async () => {
   const email = $("#au-email").value.trim(), pass = $("#au-pass").value;
-  $("#au-msg").textContent = "请稍候…";
+  $("#au-msg").textContent = t("wait");
   try {
     if (regMode) {
+      const name = ($("#au-name").value.trim() || email.split("@")[0]).slice(0, 40);
+      registerCreate = true;
+      pendingName = name;
       const c = await createUserWithEmailAndPassword(auth, email, pass);
-      const name = $("#au-name").value.trim() || email.split("@")[0];
       await updateProfile(c.user, { displayName: name });
-      await createWorkspace("个人账本", c.user);
+      S.profile.name = name;
+      createWorkspace(t("personalWs"), c.user);
+      registerCreate = false;
     } else await signInWithEmailAndPassword(auth, email, pass);
     $("#au-msg").textContent = "";
-  } catch (e) { $("#au-msg").textContent = errMsg(e); }
+  } catch (e) { registerCreate = false; pendingName = ""; $("#au-msg").textContent = errMsg(e); }
 };
-$("#au-reset").onclick = async () => {
+$("#au-reset").onclick = async (e) => {
+  e.preventDefault();
   const email = $("#au-email").value.trim();
-  if (!email) return ($("#au-msg").textContent = "请先输入邮箱");
-  try { await sendPasswordResetEmail(auth, email); $("#au-msg").textContent = "重置邮件已发送，请查收邮箱（含垃圾箱）"; } catch (e) { $("#au-msg").textContent = errMsg(e); }
+  if (!email) return ($("#au-msg").textContent = t("needEmail"));
+  try { await sendPasswordResetEmail(auth, email); $("#au-msg").textContent = t("resetSent"); } catch (err) { $("#au-msg").textContent = errMsg(err); }
 };
+document.querySelectorAll("#auth-lang [data-lang]").forEach((b) => (b.onclick = () => setLang(b.dataset.lang, true)));
+document.querySelectorAll("#auth-theme [data-theme-pick]").forEach((b) => (b.onclick = () => setTheme(b.dataset.themePick, true)));
 
 onAuthStateChanged(auth, (u) => {
+  if (u && S.user && u.uid === S.user.uid) { S.user = u; return; }
   unsubWs.forEach((f) => f()); unsubWs = []; clearData();
-  S.user = u;
-  $("#auth").classList.toggle("hidden", !!u); $("#main").classList.toggle("hidden", !u);
-  if (!u) return;
+  localProfileTouched = false; localThemeTouched = false; localLangTouched = false;
+  S.user = u; S.userDocExists = false; S.profileReady = false; S.wsId = null;
+  $("#boot").classList.add("hidden");
+  $("#auth").classList.toggle("hidden", !!u);
+  $("#main").classList.toggle("hidden", !u);
+  if (!u) { S.profile = { name: "", avatar: "" }; closeModal(); return; }
+  const cached = readProfileCache(u.uid);
+  S.profile = {
+    name: (pendingName || cached?.name || u.displayName || (u.email || "").split("@")[0] || "").slice(0, 40),
+    avatar: cached?.avatar || ""
+  };
+  pendingName = "";
   const email = (u.email || "").toLowerCase();
   let firstLoad = true;
   unsubWs.push(onSnapshot(query(collection(db, "workspaces"), where("members", "array-contains", u.uid)), (snap) => {
     S.wsList = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-    if (!S.wsList.length && firstLoad && !snap.metadata.fromCache) { firstLoad = false; createWorkspace("个人账本", u); return; }
+    if (!S.userDocExists && !localProfileTouched) adoptWorkspaceProfile();
+    if (!S.wsList.length && firstLoad && !snap.metadata.fromCache) {
+      if (registerCreate) return;
+      firstLoad = false;
+      createWorkspace(t("personalWs"), u);
+      return;
+    }
     firstLoad = false;
     const saved = localStorage.getItem("ws_" + u.uid);
     if (!ws()) switchWs((S.wsList.find((w) => w.id === saved) || S.wsList[0])?.id);
-    else { renderTop(); renderAll(); }
+    else { maybeMirror(); renderTop(); renderAll(); }
   }, (e) => toast(errMsg(e))));
   unsubWs.push(onSnapshot(query(collection(db, "workspaces"), where("invitedEmails", "array-contains", email)), (snap) => {
     S.invites = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((w) => !(w.members || []).includes(u.uid));
     renderInvites();
   }, () => {}));
+  unsubWs.push(onSnapshot(doc(db, "users", u.uid), handleUserDoc, () => {
+    S.profileReady = true; S.userDocExists = false; adoptWorkspaceProfile(); renderTop(); renderAll();
+  }));
 });
 
 function createWorkspace(name, u = S.user) {
   const ref = doc(collection(db, "workspaces"));
   const b = writeBatch(db);
-  b.set(ref, { name, ownerUid: u.uid, members: [u.uid], memberInfo: { [u.uid]: { email: (u.email || "").toLowerCase(), name: u.displayName || u.email.split("@")[0] } }, invitedEmails: [], createdAt: serverTimestamp() });
-  DEFAULT_CATS.forEach((c, i) => b.set(doc(collection(ref, "categories")), { name: c, order: i, createdAt: serverTimestamp() }));
-  b.set(doc(collection(ref, "cards")), { name: "默认卡", createdAt: serverTimestamp() });
-  b.commit().catch((e) => toast(errMsg(e))); // offline-friendly: don't await server
+  const display = (u.uid === S.user?.uid && S.profile.name) ? S.profile.name : (u.displayName || (u.email || "").split("@")[0]);
+  const avatar = u.uid === S.user?.uid ? (S.profile.avatar || "") : "";
+  b.set(ref, {
+    name, ownerUid: u.uid, members: [u.uid], currency: "CNY", invitedEmails: [], createdAt: serverTimestamp(),
+    memberInfo: { [u.uid]: { email: (u.email || "").toLowerCase(), name: display, avatar } }
+  });
+  const lang = S.lang === "en" ? "en" : "zh";
+  DEFAULT_CATS.forEach((c, i) => b.set(doc(collection(ref, "categories")), { name: c[lang], icon: c.icon, order: i, createdAt: serverTimestamp() }));
+  b.set(doc(collection(ref, "cards")), { name: t("defaultCard"), createdAt: serverTimestamp() });
+  b.commit().catch((e) => toast(errMsg(e)));
   return ref.id;
 }
-
 function clearData() {
   unsubData.forEach((f) => f()); unsubData = [];
   Object.values(unsubTxns).forEach((f) => f()); unsubTxns = {};
   Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {} });
 }
-
 function switchWs(id) {
   clearData(); S.wsId = id || null;
   if (!id) { renderTop(); renderAll(); return; }
@@ -98,7 +522,6 @@ function subExpenses() {
   if (S.expUnsub) S.expUnsub();
   const y = S.month.getFullYear(), m = S.month.getMonth();
   const start = `${y}-${pad(m + 1)}-01`, end = `${y}-${pad(m + 1)}-31`;
-  // single-field range query => no composite index needed; sorted client-side
   S.expUnsub = onSnapshot(query(wsRef("expenses"), where("date", ">=", start), where("date", "<=", end)), (s) => { S.expenses = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, (e) => toast(errMsg(e)));
   unsubData.push(() => { S.expUnsub && S.expUnsub(); S.expUnsub = null; });
 }
@@ -121,23 +544,34 @@ document.querySelectorAll("#chart-mode button").forEach((b) => (b.onclick = () =
 $("#fab").onclick = () => openExpense();
 $("#fund-add").onclick = () => openFundForm();
 $("#ws-btn").onclick = openWsPicker;
+$("#me-btn").onclick = () => openProfile();
 $("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
-function openModal(html) { $("#sheet").innerHTML = html; $("#modal").classList.remove("hidden"); }
-function closeModal() { $("#modal").classList.add("hidden"); $("#sheet").innerHTML = ""; }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+function openModal(html) { $("#sheet").innerHTML = `<div class="grab"></div>${html}`; $("#modal").classList.remove("hidden"); document.body.classList.add("modal-open"); }
+function closeModal() { $("#modal").classList.add("hidden"); $("#sheet").innerHTML = ""; document.body.classList.remove("modal-open"); }
+function onEnter(input, fn) { if (input) input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); fn(); } }; }
 
-function renderTop() { $("#ws-btn").textContent = (ws()?.name || "无账本") + " ▾"; }
-function renderAll() { renderTop(); if (S.page === "home") renderHome(); if (S.page === "funds") renderFunds(); if (S.page === "settings") renderSettings(); }
+function renderTop() {
+  if (!S.user) return;
+  $("#ws-btn").textContent = (ws()?.name || t("noWs")) + " ▾";
+  const name = S.profile.name || fallbackName();
+  $("#me-btn").innerHTML = avatarEl(S.profile.avatar, name, "av sm");
+}
+function renderAll() { renderTop(); if (!S.user) return; if (S.page === "home") renderHome(); if (S.page === "funds") renderFunds(); if (S.page === "settings") renderSettings(); }
 function renderInvites() {
-  $("#invites").innerHTML = S.invites.map((w) => `<div class="invite"><span>📩 ${esc(memberNameOf(w, w.ownerUid))} 邀请你加入「${esc(w.name)}」</span><span><button class="btn small primary" data-acc="${w.id}">接受</button> <button class="btn small" data-dec="${w.id}">忽略</button></span></div>`).join("");
+  $("#invites").innerHTML = S.invites.map((w) => {
+    const owner = w.memberInfo?.[w.ownerUid];
+    return `<div class="invite"><span class="txt">${avatarEl(owner?.avatar, memberNameOf(w, w.ownerUid), "av xs")}<span>${t("inviteLine", { name: esc(memberNameOf(w, w.ownerUid)), ws: esc(w.name) })}</span></span><span class="actions"><button class="btn small primary" type="button" data-acc="${w.id}">${t("accept")}</button><button class="btn small" type="button" data-dec="${w.id}">${t("decline")}</button></span></div>`;
+  }).join("");
   $("#invites").querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => acceptInvite(b.dataset.acc)));
   $("#invites").querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => declineInvite(b.dataset.dec)));
 }
-const memberNameOf = (w, uid) => w.memberInfo?.[uid]?.name || w.memberInfo?.[uid]?.email || "有人";
 async function acceptInvite(id) {
   const u = S.user, email = u.email.toLowerCase();
+  const name = S.profile.name || u.displayName || email.split("@")[0];
   try {
-    await updateDoc(doc(db, "workspaces", id), { members: arrayUnion(u.uid), [`memberInfo.${u.uid}`]: { email, name: u.displayName || email.split("@")[0] }, invitedEmails: arrayRemove(email) });
-    toast("已加入"); switchWs(id);
+    await updateDoc(doc(db, "workspaces", id), { members: arrayUnion(u.uid), [`memberInfo.${u.uid}`]: { email, name, avatar: S.profile.avatar || "" }, invitedEmails: arrayRemove(email) });
+    toast(t("joined")); switchWs(id);
   } catch (e) { toast(errMsg(e)); }
 }
 async function declineInvite(id) {
@@ -145,93 +579,139 @@ async function declineInvite(id) {
 }
 
 /* ---------- Home ---------- */
+function catOf(id) { return S.cats.find((c) => c.id === id); }
+function cardOf(id) { return S.cards.find((c) => c.id === id); }
 function renderHome() {
-  $("#m-label").textContent = `${S.month.getFullYear()}年${S.month.getMonth() + 1}月`;
-  const ex = [...S.expenses].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  if (!$("#m-label")) return;
+  $("#m-label").textContent = monthLabel(S.month);
+  const ex = [...S.expenses].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   const total = ex.reduce((s, e) => s + Number(e.amount || 0), 0);
-  $("#m-total").textContent = "¥" + money(total);
-  const catName = (id) => S.cats.find((c) => c.id === id)?.name || "未分类";
-  const cardName = (id) => S.cards.find((c) => c.id === id)?.name || "未指定";
-  const keyFn = { cat: (e) => catName(e.categoryId), card: (e) => cardName(e.cardId), member: (e) => memberName(e.memberUid) }[S.mode];
-  const groups = {};
-  ex.forEach((e) => (groups[keyFn(e)] = (groups[keyFn(e)] || 0) + Number(e.amount || 0)));
-  const labels = Object.keys(groups).sort((a, b) => groups[b] - groups[a]), data = labels.map((l) => groups[l]);
-  const colors = labels.map((_, i) => COLORS[i % COLORS.length]);
-  if (window.Chart) {
-    if (!chart) chart = new Chart($("#pie"), { type: "doughnut", data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2 }] }, options: { cutout: "62%", plugins: { legend: { display: false } }, animation: { duration: 300 } } });
-    else { chart.data.labels = labels; chart.data.datasets[0].data = data; chart.data.datasets[0].backgroundColor = colors; chart.update(); }
+  $("#m-total").textContent = fmt(total);
+  $("#m-code").textContent = currencyOf(ws()).code;
+  const colors = palette();
+  const groups = new Map();
+  ex.forEach((e) => {
+    let label, icon = "", photo = "";
+    if (S.mode === "cat") {
+      const c = catOf(e.categoryId);
+      label = c?.name || t("uncategorized");
+      icon = safeIcon(c?.icon);
+    } else if (S.mode === "card") {
+      label = cardOf(e.cardId)?.name || t("unspecified");
+      icon = "💳";
+    } else {
+      const info = ws()?.memberInfo?.[e.memberUid];
+      label = memberName(e.memberUid);
+      const av = safeAvatar(info?.avatar);
+      if (av.startsWith("emoji:")) icon = av.slice(6);
+      else if (av.startsWith("data:image/")) photo = av;
+    }
+    const g = groups.get(label) || { label, icon, photo, value: 0 };
+    g.value += Number(e.amount || 0);
+    groups.set(label, g);
+  });
+  const rows = [...groups.values()].sort((a, b) => b.value - a.value);
+  const labels = rows.map((r) => r.label);
+  const data = rows.map((r) => r.value);
+  const sliceColors = labels.map((_, i) => colors[i % colors.length]);
+  const canvas = $("#pie"), empty = $("#chart-empty");
+  empty.textContent = t("emptyChart");
+  if (!labels.length) {
+    if (chart) { chart.destroy(); chart = null; }
+    canvas.classList.add("hidden"); empty.classList.remove("hidden");
+  } else if (window.Chart) {
+    canvas.classList.remove("hidden"); empty.classList.add("hidden");
+    const border = chartBorder();
+    if (!chart) chart = new Chart(canvas, { type: "doughnut", data: { labels, datasets: [{ data, backgroundColor: sliceColors, borderColor: border, borderWidth: 3, hoverOffset: 6 }] }, options: { cutout: "64%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => " " + c.label + ": " + fmt(c.parsed) } } }, animation: { duration: 350 } } });
+    else { chart.data.labels = labels; chart.data.datasets[0].data = data; chart.data.datasets[0].backgroundColor = sliceColors; chart.data.datasets[0].borderColor = border; chart.update(); }
+    requestAnimationFrame(() => { if (chart) chart.resize(); });
   }
-  $("#legend").innerHTML = labels.map((l, i) => `<span><i style="background:${colors[i]}"></i>${esc(l)} ¥${money(data[i])} (${total ? Math.round((data[i] / total) * 100) : 0}%)</span>`).join("");
+  $("#legend").innerHTML = rows.map((r, i) => {
+    const ico = r.photo ? `<img class="lg-av" alt="" src="${esc(r.photo)}">` : (r.icon ? `<span class="lg-em">${esc(r.icon)}</span>` : "");
+    return `<span class="lg"><i style="background:${sliceColors[i]}"></i>${ico}${esc(r.label)} <b>${fmt(r.value)}</b> <small>${total ? Math.round((r.value / total) * 100) : 0}%</small></span>`;
+  }).join("");
   const byDay = {};
   ex.forEach((e) => (byDay[e.date] = byDay[e.date] || []).push(e));
-  const wk = "日一二三四五六";
   $("#exp-list").innerHTML = ex.length ? Object.keys(byDay).map((d) => {
-    const items = byDay[d], sum = items.reduce((s, e) => s + Number(e.amount || 0), 0), dt = new Date(d + "T00:00:00");
-    return `<div class="day-h"><span>${dt.getMonth() + 1}月${dt.getDate()}日 周${wk[dt.getDay()]}</span><span>¥${money(sum)}</span></div><div class="card" style="padding:0 14px">` +
-      items.map((e) => { const cn = catName(e.categoryId), ci = Math.max(0, S.cats.findIndex((c) => c.id === e.categoryId));
-        return `<div class="item" data-id="${e.id}"><div class="ic" style="background:${COLORS[ci % COLORS.length]}">${esc(cn[0])}</div><div class="mid"><div>${esc(cn)}</div><div class="sub">${esc(cardName(e.cardId))} · ${esc(memberName(e.memberUid))}${e.remark ? " · " + esc(e.remark) : ""}</div></div><div class="amt">-${money(e.amount)}</div></div>`; }).join("") + `</div>`;
-  }).join("") : `<div class="empty">本月还没有记录，点右下角 ＋ 记一笔</div>`;
+    const items = byDay[d], sum = items.reduce((s, e) => s + Number(e.amount || 0), 0);
+    return `<div class="day-h"><span>${dayLabel(d)}</span><span>${fmt(sum)}</span></div><div class="card" style="padding:4px 14px">` + items.map((e) => {
+      const cat = catOf(e.categoryId), cn = cat?.name || t("uncategorized");
+      const ci = Math.max(0, S.cats.findIndex((c) => c.id === e.categoryId));
+      const color = colors[ci % colors.length];
+      const icon = safeIcon(cat?.icon);
+      const bubble = icon ? `<div class="ic emo" style="--c:${color}">${esc(icon)}</div>` : `<div class="ic letter" style="--c:${color};background:${color}">${esc(firstChar(cn))}</div>`;
+      const info = ws()?.memberInfo?.[e.memberUid];
+      const remark = e.remark ? " · " + esc(e.remark) : "";
+      return `<div class="item" data-id="${esc(e.id)}">${bubble}<div class="mid"><div class="ttl">${esc(cn)}</div><div class="sub">${avatarEl(info?.avatar, memberName(e.memberUid), "av xs")}<span class="txt">${esc(cardOf(e.cardId)?.name || t("unspecified"))} · ${esc(memberName(e.memberUid))}${remark}</span></div></div><div class="amt">-${fmt(e.amount)}</div></div>`;
+    }).join("") + `</div>`;
+  }).join("") : `<div class="empty">${t("emptyMonth")}</div>`;
   $("#exp-list").querySelectorAll(".item").forEach((el) => (el.onclick = () => openExpense(S.expenses.find((e) => e.id === el.dataset.id))));
 }
-const opts = (arr, sel, label = (x) => x.name, val = (x) => x.id) => arr.map((x) => `<option value="${esc(val(x))}" ${val(x) === sel ? "selected" : ""}>${esc(label(x))}</option>`).join("");
-function memberList() { const w = ws(); return (w?.members || []).map((uid) => ({ id: uid, name: memberName(uid) })); }
+const opts = (arr, sel, label = (x) => x.name, val = (x) => x.id) => arr.map((x) => `<option value="${esc(val(x))}"${val(x) === sel ? " selected" : ""}>${esc(label(x))}</option>`).join("");
+const catLabel = (c) => { const ic = safeIcon(c.icon); return ic ? ic + " " + c.name : c.name; };
+function memberList() { return (ws()?.members || []).map((uid) => ({ id: uid, name: memberName(uid) })); }
 
 function openExpense(e) {
-  if (!S.wsId) return toast("请先创建账本");
-  openModal(`<h3>${e ? "编辑" : "记一笔"}</h3>
-  <label>金额</label><input id="f-amt" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${e ? esc(e.amount) : ""}">
-  <label>日期</label><input id="f-date" type="date" value="${e?.date || today()}">
-  <label>分类</label><select id="f-cat">${opts(S.cats, e?.categoryId)}</select>
-  <label>银行卡</label><select id="f-card">${opts(S.cards, e?.cardId)}</select>
-  <label>付款人</label><select id="f-mem">${opts(memberList(), e?.memberUid || S.user.uid)}</select>
-  <label>备注</label><input id="f-rem" type="text" placeholder="可选" value="${esc(e?.remark || "")}">
-  <div class="btns">${e ? `<button class="btn danger" id="f-del">删除</button>` : ""}<button class="btn" id="f-cancel">取消</button><button class="btn primary" id="f-save">保存</button></div>`);
+  if (!S.wsId) return toast(t("needWs"));
+  const sym = currencyOf(ws()).symbol;
+  openModal(`<h3>${e ? t("editExpense") : t("addExpense")}</h3>
+  <label>${t("amount")} (${esc(sym)})</label><input id="f-amt" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${e ? esc(e.amount) : ""}">
+  <label>${t("date")}</label><input id="f-date" type="date" value="${e?.date || today()}">
+  <label>${t("category")}</label><select id="f-cat">${opts(S.cats, e?.categoryId, catLabel)}</select>
+  <label>${t("card")}</label><select id="f-card">${opts(S.cards, e?.cardId)}</select>
+  <label>${t("payer")}</label><select id="f-mem">${opts(memberList(), e?.memberUid || S.user.uid)}</select>
+  <label>${t("remark")}</label><input id="f-rem" type="text" placeholder="${esc(t("optional"))}" value="${esc(e?.remark || "")}">
+  <div class="btns">${e ? `<button class="btn danger" id="f-del" type="button">${t("delete")}</button>` : ""}<button class="btn" id="f-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="f-save" type="button">${t("save")}</button></div>`);
   if (!e) setTimeout(() => $("#f-amt")?.focus(), 100);
   $("#f-cancel").onclick = closeModal;
   $("#f-save").onclick = () => {
     const amount = Math.round(parseFloat($("#f-amt").value) * 100) / 100;
-    if (!(amount > 0)) return toast("请输入金额");
+    if (!(amount > 0)) return toast(t("needAmount"));
     const data = { date: $("#f-date").value || today(), amount, categoryId: $("#f-cat").value, cardId: $("#f-card").value, memberUid: $("#f-mem").value, remark: $("#f-rem").value.trim() };
     const p = e ? updateDoc(doc(wsRef("expenses"), e.id), data) : addDoc(wsRef("expenses"), { ...data, createdBy: S.user.uid, createdAt: serverTimestamp() });
-    p.catch((x) => toast(errMsg(x))); closeModal(); toast("已保存");
+    p.catch((x) => toast(errMsg(x))); closeModal(); toast(t("saved"));
   };
-  if (e) $("#f-del").onclick = () => { if (confirm("确定删除这笔记录？")) { deleteDoc(doc(wsRef("expenses"), e.id)).catch((x) => toast(errMsg(x))); closeModal(); } };
+  if (e) $("#f-del").onclick = () => { if (confirm(t("confirmDeleteExpense"))) { deleteDoc(doc(wsRef("expenses"), e.id)).catch((x) => toast(errMsg(x))); closeModal(); } };
 }
 
 /* ---------- Workspaces ---------- */
 function openWsPicker() {
-  openModal(`<h3>切换账本</h3>${S.wsList.map((w) => `<div class="ws-opt ${w.id === S.wsId ? "on" : ""}" data-id="${w.id}"><span>${esc(w.name)}</span><span class="muted">${(w.members || []).length}人</span></div>`).join("")}
-  <div class="inline"><input id="ws-new" placeholder="新账本名称，如 情侣账本"><button class="btn primary" id="ws-create">创建</button></div>`);
+  openModal(`<h3>${t("switchWs")}</h3>${S.wsList.map((w) => `<div class="ws-opt ${w.id === S.wsId ? "on" : ""}" data-id="${w.id}"><span>${esc(w.name)}</span><span class="muted">${t("people", { n: (w.members || []).length })} · ${esc(currencyOf(w).code)}</span></div>`).join("")}
+  <div class="inline"><input id="ws-new" placeholder="${esc(t("newWsPh"))}"><button class="btn primary" id="ws-create" type="button">${t("create")}</button></div>`);
   $("#sheet").querySelectorAll(".ws-opt").forEach((el) => (el.onclick = () => { switchWs(el.dataset.id); closeModal(); }));
-  $("#ws-create").onclick = () => { const n = $("#ws-new").value.trim(); if (!n) return toast("请输入名称"); const id = createWorkspace(n); closeModal(); localStorage.setItem("ws_" + S.user.uid, id); toast("已创建"); setTimeout(() => { if (S.wsList.find((w) => w.id === id)) switchWs(id); }, 400); };
+  const make = () => { const n = $("#ws-new").value.trim(); if (!n) return toast(t("needName")); const id = createWorkspace(n); closeModal(); localStorage.setItem("ws_" + S.user.uid, id); toast(t("created")); setTimeout(() => { if (S.wsList.find((w) => w.id === id)) switchWs(id); }, 400); };
+  $("#ws-create").onclick = make;
+  onEnter($("#ws-new"), make);
 }
 
 /* ---------- Funds ---------- */
 function fundStats(f) {
   const tx = S.txns[f.id] || [];
   let bal = 0; const per = {};
-  tx.forEach((t) => { const v = Number(t.amount || 0) * (t.type === "withdraw" ? -1 : 1); bal += v; per[t.memberUid] = (per[t.memberUid] || 0) + v; });
+  tx.forEach((txn) => { const v = Number(txn.amount || 0) * (txn.type === "withdraw" ? -1 : 1); bal += v; per[txn.memberUid] = (per[txn.memberUid] || 0) + v; });
   return { tx, bal, per };
 }
 function renderFunds() {
-  if (S.page !== "funds") return;
+  if (S.page !== "funds" || !$("#fund-list")) return;
+  const colors = palette();
   $("#fund-list").innerHTML = S.funds.length ? S.funds.map((f) => {
     const { bal, per } = fundStats(f), pct = f.target > 0 ? Math.min(100, Math.max(0, (bal / f.target) * 100)) : 0;
     const pos = Object.entries(per).filter(([, v]) => v > 0), sum = pos.reduce((s, [, v]) => s + v, 0);
     return `<div class="card fund" data-id="${f.id}"><div class="sec-head"><b>${esc(f.name)}</b><span class="muted">${pct.toFixed(0)}%</span></div>
-      <div class="bar"><div style="width:${pct}%"></div></div><div class="muted">已存 ¥${money(bal)} / 目标 ¥${money(f.target)}</div>
-      ${pos.map(([uid, v], i) => `<div class="mbar"><span style="width:70px;overflow:hidden">${esc(memberName(uid))}</span><div class="bar"><div style="width:${(v / sum) * 100}%;background:${COLORS[(i + 1) % COLORS.length]}"></div></div><span>${Math.round((v / sum) * 100)}%</span></div>`).join("")}</div>`;
-  }).join("") : `<div class="empty">还没有存款目标，点击「新建」开始存钱吧</div>`;
+      <div class="bar"><div style="width:${pct}%"></div></div>
+      <div class="muted">${t("savedSoFar", { bal: fmt(bal), target: fmt(f.target) })}</div>
+      ${pos.map(([uid, v], i) => `<div class="mbar">${avatarEl(ws()?.memberInfo?.[uid]?.avatar, memberName(uid), "av xs")}<span class="nm">${esc(memberName(uid))}</span><div class="bar"><div style="width:${sum ? (v / sum) * 100 : 0}%;background:${colors[(i + 1) % colors.length]}"></div></div><span>${sum ? Math.round((v / sum) * 100) : 0}%</span></div>`).join("")}</div>`;
+  }).join("") : `<div class="empty">${t("emptyFunds")}</div>`;
   $("#fund-list").querySelectorAll(".fund").forEach((el) => (el.onclick = () => openFund(el.dataset.id)));
 }
 function openFundForm(f) {
-  openModal(`<h3>${f ? "编辑目标" : "新建存款目标"}</h3><label>名称</label><input id="fd-name" value="${esc(f?.name || "")}" placeholder="如 旅行基金">
-  <label>目标金额</label><input id="fd-target" type="number" inputmode="decimal" value="${f ? esc(f.target) : ""}">
-  <div class="btns"><button class="btn" id="fd-cancel">取消</button><button class="btn primary" id="fd-save">保存</button></div>`);
+  openModal(`<h3>${f ? t("editGoal") : t("newGoal")}</h3><label>${t("goalName")}</label><input id="fd-name" value="${esc(f?.name || "")}" placeholder="${esc(t("goalPh"))}">
+  <label>${t("goalAmount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fd-target" type="number" inputmode="decimal" value="${f ? esc(f.target) : ""}">
+  <div class="btns"><button class="btn" id="fd-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="fd-save" type="button">${t("save")}</button></div>`);
   $("#fd-cancel").onclick = closeModal;
   $("#fd-save").onclick = () => {
     const name = $("#fd-name").value.trim(), target = parseFloat($("#fd-target").value) || 0;
-    if (!name) return toast("请输入名称");
+    if (!name) return toast(t("needName"));
     (f ? updateDoc(doc(wsRef("funds"), f.id), { name, target }) : addDoc(wsRef("funds"), { name, target, createdAt: serverTimestamp() })).catch((x) => toast(errMsg(x)));
     closeModal();
   };
@@ -240,60 +720,149 @@ function openFund(id) {
   const f = S.funds.find((x) => x.id === id); if (!f) return;
   const { tx, bal } = fundStats(f);
   const list = [...tx].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  openModal(`<div class="sec-head"><h3>${esc(f.name)}</h3><span><button class="btn small" id="fu-edit">编辑</button> <button class="btn small danger" id="fu-del">删除</button></span></div>
-  <div class="muted">余额 ¥${money(bal)} / 目标 ¥${money(f.target)}</div>
-  <div class="seg" id="fu-type" style="margin-top:10px"><button data-t="deposit" class="on">存入</button><button data-t="withdraw">取出</button></div>
-  <input id="fu-amt" type="number" inputmode="decimal" placeholder="金额"><input id="fu-date" type="date" value="${today()}">
-  <select id="fu-mem">${opts(memberList(), S.user.uid)}</select><input id="fu-rem" placeholder="备注（可选）">
-  <button class="btn primary block" id="fu-save">确认</button>
-  <h3 style="margin-top:16px">记录</h3>${list.length ? list.map((t) => `<div class="list-row"><span>${t.type === "withdraw" ? "取出" : "存入"} · ${esc(memberName(t.memberUid))}<br><span class="muted">${esc(t.date)} ${esc(t.remark || "")}</span></span><span>${t.type === "withdraw" ? "-" : "+"}${money(t.amount)} <a class="del" data-tid="${t.id}">删除</a></span></div>`).join("") : `<div class="muted">暂无记录</div>`}
-  <button class="btn block" id="fu-close">关闭</button>`);
+  openModal(`<div class="sec-head"><h3>${esc(f.name)}</h3><span><button class="btn small" id="fu-edit" type="button">${t("edit")}</button> <button class="btn small danger" id="fu-del" type="button">${t("delete")}</button></span></div>
+  <div class="muted">${t("balanceLine", { bal: fmt(bal), target: fmt(f.target) })}</div>
+  <div class="seg" id="fu-type" style="margin-top:10px"><button type="button" data-t="deposit" class="on">${t("deposit")}</button><button type="button" data-t="withdraw">${t("withdraw")}</button></div>
+  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fu-amt" type="number" inputmode="decimal" placeholder="0.00"><input id="fu-date" type="date" value="${today()}">
+  <select id="fu-mem">${opts(memberList(), S.user.uid)}</select><input id="fu-rem" placeholder="${esc(t("optional"))}">
+  <button class="btn primary block" id="fu-save" type="button">${t("confirm")}</button>
+  <h3 style="margin-top:16px">${t("records")}</h3>${list.length ? list.map((txn) => `<div class="list-row"><span>${txn.type === "withdraw" ? t("withdraw") : t("deposit")} · ${esc(memberName(txn.memberUid))}<br><span class="muted">${esc(txn.date || "")} ${esc(txn.remark || "")}</span></span><span>${txn.type === "withdraw" ? "-" : "+"}${fmt(txn.amount)} <button class="del" type="button" data-tid="${txn.id}">${t("delete")}</button></span></div>`).join("") : `<div class="muted">${t("noRecords")}</div>`}
+  <button class="btn block" id="fu-close" type="button">${t("close")}</button>`);
   let type = "deposit";
   $("#fu-type").querySelectorAll("button").forEach((b) => (b.onclick = () => { type = b.dataset.t; $("#fu-type").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
   $("#fu-close").onclick = closeModal;
   $("#fu-edit").onclick = () => openFundForm(f);
   $("#fu-del").onclick = async () => {
-    if (!confirm("删除该目标及所有记录？")) return;
-    const b = writeBatch(db); tx.forEach((t) => b.delete(doc(wsRef("funds", f.id, "txns"), t.id))); b.delete(doc(wsRef("funds"), f.id));
+    if (!confirm(t("confirmDeleteFund"))) return;
+    const b = writeBatch(db); tx.forEach((txn) => b.delete(doc(wsRef("funds", f.id, "txns"), txn.id))); b.delete(doc(wsRef("funds"), f.id));
     b.commit().catch((x) => toast(errMsg(x))); closeModal();
   };
   $("#fu-save").onclick = () => {
     const amount = Math.round(parseFloat($("#fu-amt").value) * 100) / 100;
-    if (!(amount > 0)) return toast("请输入金额");
+    if (!(amount > 0)) return toast(t("needAmount"));
     addDoc(wsRef("funds", f.id, "txns"), { type, amount, date: $("#fu-date").value || today(), memberUid: $("#fu-mem").value, remark: $("#fu-rem").value.trim(), createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
-    toast("已记录"); setTimeout(() => openFund(f.id), 150);
+    toast(t("recorded")); setTimeout(() => openFund(f.id), 150);
   };
-  $("#sheet").querySelectorAll("[data-tid]").forEach((a) => (a.onclick = () => { if (confirm("删除这条记录？")) { deleteDoc(doc(wsRef("funds", f.id, "txns"), a.dataset.tid)); setTimeout(() => openFund(f.id), 150); } }));
+  $("#sheet").querySelectorAll("[data-tid]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmDeleteTxn"))) { deleteDoc(doc(wsRef("funds", f.id, "txns"), a.dataset.tid)); setTimeout(() => openFund(f.id), 150); } }));
 }
 
-/* ---------- Settings ---------- */
+/* ---------- Profile, icons, settings ---------- */
+function openEmojiPicker(title, emojis, current, onPick) {
+  openModal(`<h3>${esc(title)}</h3><div class="emoji-grid">${emojis.map((e, i) => `<button type="button" class="emoji-btn${e === current ? " on" : ""}" data-i="${i}">${e}</button>`).join("")}</div><button class="btn block" id="em-close" type="button">${t("cancel")}</button>`);
+  $("#em-close").onclick = closeModal;
+  $("#sheet").querySelectorAll(".emoji-btn").forEach((b) => (b.onclick = () => { const emoji = emojis[Number(b.dataset.i)]; closeModal(); onPick(emoji); }));
+}
+function openAvatarPicker(nameOverride) {
+  const useName = String(nameOverride || S.profile.name || fallbackName()).trim();
+  const cur = safeAvatar(S.profile.avatar);
+  const curEmoji = cur.startsWith("emoji:") ? cur.slice(6) : "";
+  openModal(`<h3>${t("changeAvatar")}</h3><div class="emoji-grid">${PRESET_AVATARS.map((e, i) => `<button type="button" class="emoji-btn${e === curEmoji ? " on" : ""}" data-i="${i}">${e}</button>`).join("")}</div>
+    <div class="btns"><button class="btn" id="av-up" type="button">${t("uploadPhoto")}</button><button class="btn" id="av-clear" type="button">${t("removePhoto")}</button></div>
+    <input id="av-file" type="file" accept="image/*" class="hidden">
+    <button class="btn block" id="av-close" type="button">${t("cancel")}</button>`);
+  const pick = (avatar) => saveProfile({ name: useName, avatar });
+  $("#sheet").querySelectorAll(".emoji-btn").forEach((b) => (b.onclick = () => { const emoji = PRESET_AVATARS[Number(b.dataset.i)]; closeModal(); pick("emoji:" + emoji); }));
+  $("#av-clear").onclick = () => { closeModal(); pick(""); };
+  $("#av-close").onclick = closeModal;
+  $("#av-up").onclick = () => $("#av-file").click();
+  $("#av-file").onchange = async () => {
+    const file = $("#av-file").files && $("#av-file").files[0];
+    if (!file) return;
+    toast(t("wait"));
+    try { const data = await compressImage(file); closeModal(); pick(data); }
+    catch (err) { toast(err && err.message === "big" ? t("photoTooBig") : t("photoFail")); }
+  };
+}
+function openProfile() {
+  if (!S.user) return;
+  const name = S.profile.name || fallbackName();
+  openModal(`<h3>${t("profile")}</h3><div class="profile-modal">${avatarEl(S.profile.avatar, name, "av lg")}</div>
+    <button class="btn block" id="p-av" type="button">${t("changeAvatar")}</button>
+    <label>${t("displayName")}</label><input id="p-name" maxlength="40" value="${esc(name)}">
+    <p class="muted">${esc(S.user.email || "")}</p>
+    <div class="btns"><button class="btn" id="p-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="p-save" type="button">${t("save")}</button></div>`);
+  $("#p-cancel").onclick = closeModal;
+  $("#p-av").onclick = () => openAvatarPicker($("#p-name").value);
+  $("#p-save").onclick = () => { saveProfile({ name: $("#p-name").value }); closeModal(); };
+  onEnter($("#p-name"), () => { saveProfile({ name: $("#p-name").value }); closeModal(); });
+}
+function currencyOptions(sel) {
+  return CURRENCIES.map((c) => `<option value="${c.code}"${c.code === sel ? " selected" : ""}>${c.code} · ${esc(c.symbol)} ${esc(S.lang === "en" ? c.en : c.zh)}</option>`).join("");
+}
 function renderSettings() {
   const w = ws(), el = $("#settings");
-  if (!w) { el.innerHTML = `<div class="card">暂无账本</div><button class="btn danger block" id="s-logout">退出登录</button>`; $("#s-logout").onclick = () => signOut(auth); return; }
-  const isOwner = w.ownerUid === S.user.uid;
-  const row = (x, kind) => `<div class="list-row"><span>${esc(x.name)}</span><a class="del" data-k="${kind}" data-id="${x.id}">删除</a></div>`;
-  el.innerHTML = `
-  <div class="card"><b>账本名称</b><div class="inline"><input id="s-name" value="${esc(w.name)}"><button class="btn primary" id="s-rename">保存</button></div></div>
-  <div class="card"><b>分类</b>${S.cats.map((c) => row(c, "categories")).join("")}<div class="inline"><input id="s-cat" placeholder="新分类"><button class="btn primary" id="s-addcat">添加</button></div></div>
-  <div class="card"><b>银行卡 / 账户</b>${S.cards.map((c) => row(c, "cards")).join("")}<div class="inline"><input id="s-card" placeholder="如 招商银行信用卡"><button class="btn primary" id="s-addcard">添加</button></div></div>
-  <div class="card"><b>成员</b>${(w.members || []).map((uid) => `<div class="list-row"><span>${esc(memberName(uid))}${uid === w.ownerUid ? ' <span class="muted">（创建者）</span>' : ""}<br><span class="muted">${esc(w.memberInfo?.[uid]?.email || "")}</span></span>${isOwner && uid !== w.ownerUid ? `<a class="del" data-rm="${uid}">移除</a>` : ""}</div>`).join("")}
-    ${(w.invitedEmails || []).map((e) => `<div class="list-row"><span class="muted">⏳ ${esc(e)}（待接受）</span><a class="del" data-unv="${esc(e)}">撤销</a></div>`).join("")}
-    <div class="inline"><input id="s-inv" type="email" placeholder="对方注册用的邮箱"><button class="btn primary" id="s-invite">邀请</button></div>
-    <div class="muted">对方用该邮箱登录后，会在顶部看到邀请并可接受。</div></div>
-  <div class="card"><b>我的账号</b><div class="muted">${esc(S.user.displayName || "")} ${esc(S.user.email)}</div>
-    ${!isOwner ? `<button class="btn danger block" id="s-leave">退出此账本</button>` : ""}<button class="btn block" id="s-logout">退出登录</button></div>`;
-  $("#s-rename").onclick = () => { const n = $("#s-name").value.trim(); if (n) updateDoc(wsRef(), { name: n }).then(() => toast("已保存")).catch((x) => toast(errMsg(x))); };
-  $("#s-addcat").onclick = () => { const n = $("#s-cat").value.trim(); if (n) addDoc(wsRef("categories"), { name: n, order: S.cats.length, createdAt: serverTimestamp() }); };
-  $("#s-addcard").onclick = () => { const n = $("#s-card").value.trim(); if (n) addDoc(wsRef("cards"), { name: n, createdAt: serverTimestamp() }); };
-  el.querySelectorAll("[data-k]").forEach((a) => (a.onclick = () => { if (confirm("确定删除？已有记录将显示为未分类/未指定。")) deleteDoc(doc(wsRef(a.dataset.k), a.dataset.id)); }));
-  $("#s-invite").onclick = () => {
-    const e = $("#s-inv").value.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(e)) return toast("邮箱格式不正确");
-    if (Object.values(w.memberInfo || {}).some((m) => m.email === e)) return toast("已是成员");
-    updateDoc(wsRef(), { invitedEmails: arrayUnion(e) }).then(() => toast("已发送邀请")).catch((x) => toast(errMsg(x)));
-  };
-  el.querySelectorAll("[data-unv]").forEach((a) => (a.onclick = () => updateDoc(wsRef(), { invitedEmails: arrayRemove(a.dataset.unv) })));
-  el.querySelectorAll("[data-rm]").forEach((a) => (a.onclick = () => { if (confirm("移除该成员？")) updateDoc(wsRef(), { members: arrayRemove(a.dataset.rm), [`memberInfo.${a.dataset.rm}`]: deleteField() }); }));
-  if ($("#s-leave")) $("#s-leave").onclick = () => { if (confirm("退出后将看不到此账本数据，确定？")) { const id = S.wsId; updateDoc(doc(db, "workspaces", id), { members: arrayRemove(S.user.uid) }).catch((x) => toast(errMsg(x))); localStorage.removeItem("ws_" + S.user.uid); switchWs(S.wsList.find((x) => x.id !== id)?.id); } };
-  $("#s-logout").onclick = () => { if (confirm("确定退出登录？")) signOut(auth); };
+  if (!el || !S.user) return;
+  const name = S.profile.name || fallbackName();
+  const parts = [];
+  parts.push(`<div class="card profile-card"><button id="s-avatar" class="avatar-btn" type="button">${avatarEl(S.profile.avatar, name, "av lg")}</button><div class="profile-fields"><label class="sec-title">${t("displayName")}</label><div class="inline"><input id="s-dname" maxlength="40" value="${esc(name)}"><button class="btn primary" id="s-savename" type="button">${t("save")}</button></div><div class="muted">${esc(S.user.email || "")}</div></div></div>`);
+  parts.push(`<div class="card"><b class="sec-title">${t("language")}</b><div class="seg" id="s-lang"><button type="button" data-lang="zh" class="${S.lang === "zh" ? "on" : ""}">简体中文</button><button type="button" data-lang="en" class="${S.lang === "en" ? "on" : ""}">English</button></div><b class="sec-title blk">${t("theme")}</b><div class="themes">${["fresh", "warm", "dark"].map((id) => `<button type="button" class="theme-opt${S.theme === id ? " on" : ""}" data-theme-pick="${id}"><i class="swatch ${id}"></i><span>${t("theme_" + id)}</span></button>`).join("")}</div></div>`);
+  if (!w) parts.push(`<div class="card empty">${t("noWs")}</div>`);
+  else {
+    const isOwner = w.ownerUid === S.user.uid;
+    const catRow = (c) => {
+      const icon = safeIcon(c.icon);
+      const face = icon ? esc(icon) : esc(firstChar(c.name));
+      return `<div class="list-row"><button class="ic-pick${icon ? "" : " letter"}" type="button" data-ci="${c.id}">${face}</button><span class="grow">${esc(c.name)}</span><button class="del" type="button" data-k="categories" data-id="${c.id}">${t("delete")}</button></div>`;
+    };
+    const cardRow = (c) => `<div class="list-row"><span class="grow">${esc(c.name)}</span><button class="del" type="button" data-k="cards" data-id="${c.id}">${t("delete")}</button></div>`;
+    parts.push(`<div class="card"><b class="sec-title">${t("wsName")}</b><div class="inline"><input id="s-name" value="${esc(w.name)}"><button class="btn primary" id="s-rename" type="button">${t("save")}</button></div><label class="sec-title">${t("currency")}</label><select id="s-cur">${currencyOptions(currencyOf(w).code)}</select><div class="muted">${t("currencyHint")}</div></div>`);
+    parts.push(`<div class="card"><b class="sec-title">${t("categories")}</b>${S.cats.map(catRow).join("")}<div class="inline"><button class="ic-pick" id="s-caticon" type="button">${esc(pendingCatIcon)}</button><input id="s-cat" placeholder="${esc(t("newCat"))}"><button class="btn primary" id="s-addcat" type="button">${t("add")}</button></div></div>`);
+    parts.push(`<div class="card"><b class="sec-title">${t("cards")}</b>${S.cards.map(cardRow).join("")}<div class="inline"><input id="s-card" placeholder="${esc(t("newCardPh"))}"><button class="btn primary" id="s-addcard" type="button">${t("add")}</button></div></div>`);
+    parts.push(`<div class="card"><b class="sec-title">${t("members")}</b>${(w.members || []).map((uid) => `<div class="list-row"><span class="who">${avatarEl(w.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<span class="meta">${esc(memberName(uid))}${uid === w.ownerUid ? ` <span class="muted">（${t("owner")}）</span>` : ""}<span class="muted em">${esc(w.memberInfo?.[uid]?.email || "")}</span></span></span>${isOwner && uid !== w.ownerUid ? `<button class="del" type="button" data-rm="${uid}">${t("remove")}</button>` : ""}</div>`).join("")}
+      ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
+      <div class="inline"><input id="s-inv" type="email" placeholder="${esc(t("invitePh"))}"><button class="btn primary" id="s-invite" type="button">${t("invite")}</button></div>
+      <div class="muted">${t("inviteHint")}</div></div>`);
+    if (!isOwner) parts.push(`<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`);
+  }
+  parts.push(`<button class="btn block" id="s-logout" type="button">${t("logout")}</button>`);
+  el.innerHTML = parts.join("");
+  $("#s-avatar").onclick = () => openAvatarPicker();
+  const saveName = () => saveProfile({ name: $("#s-dname").value });
+  $("#s-savename").onclick = saveName;
+  onEnter($("#s-dname"), saveName);
+  el.querySelectorAll("#s-lang [data-lang]").forEach((b) => (b.onclick = () => setLang(b.dataset.lang, true)));
+  el.querySelectorAll("[data-theme-pick]").forEach((b) => (b.onclick = () => setTheme(b.dataset.themePick, true)));
+  if (w) {
+    $("#s-rename").onclick = () => {
+      const n = $("#s-name").value.trim();
+      if (!n) return;
+      w.name = n;
+      updateDoc(wsRef(), { name: n }).then(() => toast(t("saved"))).catch((x) => toast(errMsg(x)));
+      renderTop();
+    };
+    onEnter($("#s-name"), () => $("#s-rename").click());
+    $("#s-cur").onchange = () => {
+      const code = $("#s-cur").value;
+      if (!CURRENCIES.some((c) => c.code === code)) return;
+      w.currency = code;
+      updateDoc(wsRef(), { currency: code }).then(() => toast(t("saved"))).catch((x) => toast(errMsg(x)));
+    };
+    $("#s-caticon").onclick = () => openEmojiPicker(t("pickIcon"), CAT_ICONS, pendingCatIcon, (emoji) => { pendingCatIcon = emoji; const b = $("#s-caticon"); if (b) b.textContent = emoji; });
+    const addCat = () => { const n = $("#s-cat").value.trim(); if (!n) return; addDoc(wsRef("categories"), { name: n, icon: pendingCatIcon, order: S.cats.length, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x))); pendingCatIcon = "🏷️"; };
+    $("#s-addcat").onclick = addCat;
+    onEnter($("#s-cat"), addCat);
+    const addCard = () => { const n = $("#s-card").value.trim(); if (n) addDoc(wsRef("cards"), { name: n, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x))); };
+    $("#s-addcard").onclick = addCard;
+    onEnter($("#s-card"), addCard);
+    el.querySelectorAll("[data-ci]").forEach((b) => (b.onclick = () => {
+      const cat = S.cats.find((c) => c.id === b.dataset.ci);
+      openEmojiPicker(t("pickIcon"), CAT_ICONS, safeIcon(cat?.icon), (emoji) => updateDoc(doc(wsRef("categories"), b.dataset.ci), { icon: emoji }).catch((x) => toast(errMsg(x))));
+    }));
+    el.querySelectorAll("[data-k]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmDelete"))) deleteDoc(doc(wsRef(a.dataset.k), a.dataset.id)).catch((x) => toast(errMsg(x))); }));
+    const invite = () => {
+      const email = $("#s-inv").value.trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(email)) return toast(t("badEmail"));
+      if (Object.values(w.memberInfo || {}).some((m) => m.email === email)) return toast(t("alreadyMember"));
+      updateDoc(wsRef(), { invitedEmails: arrayUnion(email) }).then(() => toast(t("inviteSent"))).catch((x) => toast(errMsg(x)));
+    };
+    $("#s-invite").onclick = invite;
+    onEnter($("#s-inv"), invite);
+    el.querySelectorAll("[data-unv]").forEach((a) => (a.onclick = () => updateDoc(wsRef(), { invitedEmails: arrayRemove(a.dataset.unv) }).catch((x) => toast(errMsg(x)))));
+    el.querySelectorAll("[data-rm]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmRemove"))) updateDoc(wsRef(), { members: arrayRemove(a.dataset.rm), [`memberInfo.${a.dataset.rm}`]: deleteField() }).catch((x) => toast(errMsg(x))); }));
+    if ($("#s-leave")) $("#s-leave").onclick = () => { if (confirm(t("confirmLeave"))) { const id = S.wsId; updateDoc(doc(db, "workspaces", id), { members: arrayRemove(S.user.uid) }).catch((x) => toast(errMsg(x))); localStorage.removeItem("ws_" + S.user.uid); switchWs(S.wsList.find((x) => x.id !== id)?.id); } };
+  }
+  $("#s-logout").onclick = () => { if (confirm(t("confirmLogout"))) signOut(auth); };
 }
+
+setTheme(S.theme, false);
+setLang(S.lang, false);
