@@ -1,11 +1,38 @@
-```
 rules_version = '2';
+// 记账本规则。程序更新后，请把本文件全部内容粘贴到
+// Firebase 控制台 → Firestore Database → Rules → Publish（发布）。
+// users/{uid} 只有本人能读写，用来记住昵称、头像、主题和语言。
+// 其他成员看到的名字和头像写在账本的 memberInfo 里，不对外公开。
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function myEmail() { return request.auth.token.email.lower(); }
     function isMemberOf(wsId) {
       return signedIn() && request.auth.uid in get(/databases/$(database)/documents/workspaces/$(wsId)).data.members;
+    }
+    function validAvatar(a) {
+      return a is string && (
+        a == "" ||
+        (a.size() <= 32 && a.matches('emoji:.+')) ||
+        (a.size() <= 80000 && (
+          a.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]+') ||
+          a.matches('data:image/png;base64,[A-Za-z0-9+/=]+')
+        ))
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['name', 'avatar', 'theme', 'lang'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && validAvatar(request.resource.data.avatar)
+        && request.resource.data.theme in ['fresh', 'warm', 'dark']
+        && request.resource.data.lang in ['zh', 'en'];
+      allow delete: if false;
     }
 
     match /workspaces/{wsId} {
@@ -37,4 +64,3 @@ service cloud.firestore {
     }
   }
 }
-```
