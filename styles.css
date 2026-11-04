@@ -53,6 +53,7 @@ input,select,textarea{
   background:var(--input);margin:6px 0;color:var(--t);font-size:16px;
 }
 textarea{resize:vertical;min-height:72px}
+input.money{text-align:right;font-variant-numeric:tabular-nums}
 .btn{padding:12px 16px;border-radius:12px;background:var(--chip);font-weight:700;color:var(--t)}
 .btn.primary{background:var(--fab);color:#fff;box-shadow:0 6px 16px var(--glow)}
 .btn.danger{background:var(--danger-bg);color:var(--r)}
@@ -122,7 +123,18 @@ textarea{resize:vertical;min-height:72px}
 .filters .inline > div{flex:1;min-width:0}
 .cat-name{text-align:left;font-weight:700;padding:6px 0}
 .choice-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-emoji-picker{width:100%;height:min(360px,52vh);--num-columns:8}
+button:disabled{opacity:.45}
+.checkline{display:flex;align-items:center;gap:8px;margin:10px 0;font-weight:700}
+.checkline input{width:auto;margin:0}
+.split-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+.split-amt{width:108px;flex:none;margin:0}
+.epick{display:flex;flex-direction:column;gap:8px;min-width:0;max-width:100%}
+.epick-tabs{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;flex:none;padding-bottom:2px}
+.epick-tabs button{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:var(--chip);font-size:13px;font-weight:700}
+.epick-tabs button.on{background:var(--g);color:#fff}
+.epick-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;max-height:min(46vh,320px);overflow-x:hidden;overflow-y:auto;min-width:0}
+.epick-grid button{aspect-ratio:1;min-width:0;padding:0;border-radius:12px;background:var(--chip);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center}
+@media (max-width:380px){.epick-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.epick-grid button{font-size:20px}}
 .empty{text-align:center;color:var(--m);padding:28px 10px}
 .fab{position:fixed;right:18px;bottom:calc(98px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;background:var(--fab);color:#fff;font-size:32px;box-shadow:0 10px 24px var(--glow);z-index:6;display:flex;align-items:center;justify-content:center;line-height:1}
 .tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:520px;display:flex;background:var(--nav);border:1px solid var(--nav-border);border-radius:22px;box-shadow:0 10px 30px rgba(15,23,42,.12);z-index:7;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:4px}
@@ -130,7 +142,7 @@ emoji-picker{width:100%;height:min(360px,52vh);--num-columns:8}
 .tabs button.on{background:var(--ok-bg);color:var(--g)}
 .tab-ico{font-size:18px;line-height:1.2}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:20;display:flex;align-items:flex-end;justify-content:center}
-.sheet{background:var(--sheet);color:var(--t);width:100%;max-width:640px;border-radius:24px 24px 0 0;padding:8px 18px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto;box-shadow:0 -10px 40px rgba(0,0,0,.2);animation:sheetIn .28s ease}
+.sheet{background:var(--sheet);color:var(--t);width:100%;max-width:640px;border-radius:24px 24px 0 0;padding:8px 18px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow-x:hidden;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.2);animation:sheetIn .28s ease}
 .grab{width:40px;height:4px;border-radius:4px;background:var(--b);margin:6px auto 12px}
 .sheet h3{margin:0 0 8px;font-size:18px}
 .sheet label,.sec-title{font-size:13px;color:var(--m);display:block;margin-top:8px;font-weight:700}
