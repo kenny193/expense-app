@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function isMemberOf(wsId) {
+      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/workspaces/$(wsId)).data.members;
+    }
+
+    match /workspaces/{wsId} {
+      // 成员可读；被邀请者（邮箱在 invitedEmails 中）也可读，用于看到邀请
+      allow read: if signedIn() && (request.auth.uid in resource.data.members
+                    || myEmail() in resource.data.invitedEmails);
+
+      // 创建：自己必须是 owner 且唯一成员
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.members == [request.auth.uid];
+
+      // 成员可修改（ownerUid 不可变）；被邀请者只能把自己加入 / 拒绝邀请
+      allow update: if signedIn() && (
+        (request.auth.uid in resource.data.members
+          && request.resource.data.ownerUid == resource.data.ownerUid)
+        ||
+        (myEmail() in resource.data.invitedEmails
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberInfo', 'invitedEmails'])
+          && request.resource.data.members.toSet().difference(resource.data.members.toSet()).hasOnly([request.auth.uid])
+          && resource.data.members.toSet().difference(request.resource.data.members.toSet()).size() == 0
+          && request.resource.data.memberInfo.diff(resource.data.memberInfo).affectedKeys().hasOnly([request.auth.uid])
+          && resource.data.invitedEmails.toSet().difference(request.resource.data.invitedEmails.toSet()).hasOnly([myEmail()])
+          && request.resource.data.invitedEmails.toSet().difference(resource.data.invitedEmails.toSet()).size() == 0)
+      );
+
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      match /{sub=**} {
+        allow read, write: if isMemberOf(wsId);
+      }
+    }
+  }
+}
