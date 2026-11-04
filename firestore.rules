@@ -1,3 +1,4 @@
+```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -8,16 +9,13 @@ service cloud.firestore {
     }
 
     match /workspaces/{wsId} {
-      // 成员可读；被邀请者（邮箱在 invitedEmails 中）也可读，用于看到邀请
       allow read: if signedIn() && (request.auth.uid in resource.data.members
                     || myEmail() in resource.data.invitedEmails);
 
-      // 创建：自己必须是 owner 且唯一成员
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.members == [request.auth.uid];
 
-      // 成员可修改（ownerUid 不可变）；被邀请者只能把自己加入 / 拒绝邀请
       allow update: if signedIn() && (
         (request.auth.uid in resource.data.members
           && request.resource.data.ownerUid == resource.data.ownerUid)
@@ -39,3 +37,4 @@ service cloud.firestore {
     }
   }
 }
+```
