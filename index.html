@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#10b981">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="记账本">
+<title>记账本</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div id="auth" class="auth hidden">
+  <h1>💰 记账本</h1>
+  <input id="au-email" type="email" placeholder="邮箱" autocomplete="email">
+  <input id="au-name" type="text" placeholder="昵称（注册时填写）" class="hidden">
+  <input id="au-pass" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+  <button id="au-submit" class="btn primary">登录</button>
+  <div class="row-links"><a id="au-toggle">没有账号？注册</a><a id="au-reset">忘记密码</a></div>
+  <p id="au-msg" class="msg"></p>
+</div>
+<div id="main" class="hidden">
+  <header class="topbar"><button id="ws-btn" class="ws-btn">账本 ▾</button></header>
+  <div id="invites"></div>
+  <section id="page-home" class="page">
+    <div class="month-bar"><button id="m-prev">‹</button><span id="m-label"></span><button id="m-next">›</button></div>
+    <div class="card">
+      <div class="seg" id="chart-mode"><button data-m="cat" class="on">分类</button><button data-m="card">银行卡</button><button data-m="member">成员</button></div>
+      <div class="total">本月支出 <b id="m-total">0.00</b></div>
+      <div class="chart-wrap"><canvas id="pie"></canvas></div>
+      <div id="legend" class="legend"></div>
+    </div>
+    <div id="exp-list"></div>
+    <button id="fab" class="fab">＋</button>
+  </section>
+  <section id="page-funds" class="page hidden">
+    <div class="sec-head"><h2>存款目标</h2><button id="fund-add" class="btn small primary">＋ 新建</button></div>
+    <div id="fund-list"></div>
+  </section>
+  <section id="page-settings" class="page hidden"><div id="settings"></div></section>
+  <nav class="tabs"><button data-p="home" class="on">🏠<span>首页</span></button><button data-p="funds">🐷<span>存款</span></button><button data-p="settings">⚙️<span>设置</span></button></nav>
+</div>
+<div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
+<div id="toast" class="toast hidden"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
