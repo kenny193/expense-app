@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp, arrayUnion, arrayRemove, deleteField } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp, arrayUnion, arrayRemove, deleteField } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -38,8 +38,8 @@ const DEFAULT_CATS = [
   { zh: "居住", en: "Home", icon: "🏠" },
   { zh: "其他", en: "Other", icon: "📦" }
 ];
-const CAT_ICONS = ["🍜", "🍔", "☕", "🧁", "🚌", "🚗", "🚇", "✈️", "⛽", "🏠", "💡", "🛒", "🛍️", "👕", "🎮", "🎬", "🎵", "💊", "📚", "👶", "🐶", "🎁", "📦", "💰", "🧾", "🔧", "🏦", "💅", "🧹", "⚽", "🌳", "💻", "📱", "🏥", "🎓", "🐷", "🏷️"];
 const PRESET_AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦄", "🐙", "🐶", "🐱", "🐻", "🐰", "🐧", "🦋", "🌸", "🍀", "⭐", "🌙", "🔥", "💎", "🌈", "☀️", "🎧", "🚀", "🍕", "⚽"];
+const EMOJI_VER = "1.29.1";
 const WK = { zh: ["日", "一", "二", "三", "四", "五", "六"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const I18N_ROWS = [
@@ -68,8 +68,34 @@ const I18N_ROWS = [
   ["emptyChart", "这个月还没有支出", "No spending this month"],
   ["emptyMonth", "本月还没有记录，点右下角 ＋ 记一笔", "Nothing this month yet. Tap ＋ to add one."],
   ["fundsTitle", "存款目标", "Savings goals"],
-  ["fundNew", "＋ 新建", "＋ New"],
-  ["emptyFunds", "还没有存款目标，点「新建」开始存钱吧", "No savings goals yet. Tap New to start one."],
+  ["emptyFunds", "还没有存款目标，点右下角 ＋ 新建或记一笔", "No savings goals yet. Tap ＋ to create one or add money."],
+  ["fundMenu", "存款", "Savings"],
+  ["addTxn", "记一笔存取", "Add a transaction"],
+  ["chooseFund", "选择目标", "Choose a goal"],
+  ["needFund", "请先新建一个存款目标", "Create a savings goal first"],
+  ["searchRemark", "搜索备注", "Search notes"],
+  ["filter", "筛选", "Filter"],
+  ["clearFilters", "清除", "Clear"],
+  ["allCategories", "全部分类", "All categories"],
+  ["allCards", "全部账户", "All cards"],
+  ["allMembers", "全部成员", "All members"],
+  ["fromDate", "开始日期", "From"],
+  ["toDate", "结束日期", "To"],
+  ["showing", "显示 {n} / {total}", "Showing {n} of {total}"],
+  ["noMatch", "没有符合筛选的记录", "No expenses match these filters"],
+  ["editCategory", "编辑分类", "Edit category"],
+  ["catName", "分类名称", "Category name"],
+  ["receipt", "小票", "Receipt"],
+  ["takePhoto", "拍照", "Camera"],
+  ["choosePhoto", "相册", "Gallery"],
+  ["scanReceipt", "识别小票并填入", "Scan receipt to fill"],
+  ["scanning", "正在识别小票…第一次会下载语言包，请稍等", "Reading the receipt… the first time downloads language files"],
+  ["scanDone", "已填入识别结果，请核对", "Filled in from the receipt. Please check it."],
+  ["scanFail", "识别失败，请换一张更清晰的照片", "Couldn't read that photo. Try a clearer one."],
+  ["scanEmpty", "没有识别出金额、日期或店名，请手动填写", "No amount, date, or shop name found. Fill them in yourself."],
+  ["removeReceipt", "移除小票", "Remove receipt"],
+  ["receiptHint", "照片会缩小后存在账本里，不需要开通云存储。", "The photo is shrunk and saved in the workspace. No cloud storage setup."],
+  ["emojiFail", "表情加载失败，请检查网络", "Couldn't load emojis. Check your connection."],
   ["noWs", "无账本", "No workspace"],
   ["profile", "个人资料", "Profile"],
   ["displayName", "昵称", "Display name"],
@@ -197,11 +223,13 @@ const S = {
   user: null, profile: { name: "", avatar: "" }, profileReady: false, userDocExists: false,
   theme: storedTheme(), lang: storedLang(),
   wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {},
-  month: new Date(), mode: "cat", page: "home"
+  month: new Date(), mode: "cat", page: "home",
+  filters: { cat: "", card: "", member: "", q: "", from: "", to: "", open: false }
 };
 let unsubWs = [], unsubData = [], unsubTxns = {}, chart = null;
 let localProfileTouched = false, localThemeTouched = false, localLangTouched = false;
-let pendingCatIcon = "🏷️", regMode = false, registerCreate = false, pendingName = "";
+let regMode = false, registerCreate = false, pendingName = "";
+let receiptDraft = null, ocrWorkerPromise = null, emojiReady = null, emojiZh = null;
 
 const ws = () => S.wsList.find((w) => w.id === S.wsId);
 const wsRef = (...p) => (p.length ? collection(db, "workspaces", S.wsId, ...p) : doc(db, "workspaces", S.wsId));
@@ -233,8 +261,89 @@ function safeAvatar(a) {
 function safeIcon(s) {
   if (typeof s !== "string") return "";
   const v = s.trim();
-  if (!v || v.length > 16 || /[<>&"']/.test(v)) return "";
+  if (!v || v.length > 32 || /[<>&"']/.test(v)) return "";
   return v;
+}
+function safeReceipt(a) {
+  if (typeof a !== "string" || a.length < 32 || a.length > 750000) return "";
+  if (/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(a)) return a;
+  return "";
+}
+function monthRange(d) {
+  const y = d.getFullYear(), m = d.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  return { start: `${y}-${pad(m + 1)}-01`, end: `${y}-${pad(m + 1)}-${pad(last)}` };
+}
+function validYmd(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+function parseMoneyToken(raw) {
+  let t = String(raw || "").trim();
+  if (!t) return 0;
+  const commaDec = /,\d{1,2}$/.test(t);
+  if (commaDec && t.includes(".")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (commaDec) t = t.replace(",", ".");
+  else t = t.replace(/,/g, "");
+  const n = Number(t);
+  if (!isFinite(n) || n <= 0 || n >= 10000000) return 0;
+  return Math.round(n * 100) / 100;
+}
+function parseReceiptText(text) {
+  const lines = String(text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const joined = lines.join("\n");
+  let date = "";
+  const ymdMatch = joined.match(/(20\d{2})\s*[.\-/年]\s*(\d{1,2})\s*[.\-/月]\s*(\d{1,2})/);
+  const dmy = joined.match(/\b(\d{1,2})[.\-/](\d{1,2})[.\-/](20\d{2})\b/);
+  if (ymdMatch) date = `${ymdMatch[1]}-${pad(+ymdMatch[2])}-${pad(+ymdMatch[3])}`;
+  else if (dmy) {
+    const a = +dmy[1], b = +dmy[2];
+    let day = a, month = b;
+    if (a > 12) { day = a; month = b; }
+    else if (b > 12) { month = a; day = b; }
+    date = `${dmy[3]}-${pad(month)}-${pad(day)}`;
+  }
+  if (!validYmd(date)) date = "";
+  const moneyRe = /(?:RM|MYR|CNY|RMB|USD|SGD|EUR|MXN|BRL|S\$|MX\$|R\$|¥|￥|\$|€)\s*(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})|\d+(?:[.,]\d{2})?)|(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})|\d+[.,]\d{2})/gi;
+  const amountsIn = (line) => {
+    const out = [];
+    const re = new RegExp(moneyRe.source, "gi");
+    let m;
+    while ((m = re.exec(line))) {
+      const n = parseMoneyToken(m[1] || m[2]);
+      if (n) out.push(n);
+    }
+    return out;
+  };
+  const totalRe = /(合计|总计|总金额|应付|实付|实收|总额|total|amount due|grand total|balance due)/i;
+  let amount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (!totalRe.test(lines[i])) continue;
+    let found = amountsIn(lines[i]);
+    if (!found.length && lines[i + 1]) found = amountsIn(lines[i + 1]);
+    if (!found.length) {
+      const bare = lines[i].match(/(\d{1,6}(?:[.,]\d{1,2})?)\s*$/);
+      if (bare) { const n = parseMoneyToken(bare[1]); if (n) found = [n]; }
+    }
+    if (found.length) { amount = found[found.length - 1]; break; }
+  }
+  if (!amount) {
+    const all = amountsIn(joined);
+    if (all.length) amount = Math.max.apply(null, all);
+  }
+  const skip = /^(tel|fax|tax|gst|sst|www\.|http|电话|地址)/i;
+  let merchant = "";
+  for (const line of lines) {
+    if (line.length < 2 || line.length > 40) continue;
+    if (totalRe.test(line) || skip.test(line)) continue;
+    if (!/[A-Za-z\u4e00-\u9fff]/.test(line)) continue;
+    if (/^\d/.test(line) && !/[\u4e00-\u9fff]/.test(line) && !/[A-Za-z]{3,}/.test(line)) continue;
+    merchant = line.replace(/\s{2,}/g, " ").slice(0, 40);
+    break;
+  }
+  return { amount, date, merchant };
 }
 function avatarEl(avatar, name, cls = "av") {
   const a = safeAvatar(avatar);
@@ -282,7 +391,7 @@ function applyI18n() {
   updateLangButtons();
   updateThemeButtons();
   const me = $("#me-btn"); if (me) me.setAttribute("aria-label", t("profile"));
-  const fab = $("#fab"); if (fab) fab.setAttribute("aria-label", t("addExpense"));
+  syncFab();
   const prev = $("#m-prev"); if (prev) prev.setAttribute("aria-label", t("prevMonth"));
   const next = $("#m-next"); if (next) next.setAttribute("aria-label", t("nextMonth"));
 }
@@ -511,6 +620,7 @@ function clearData() {
 }
 function switchWs(id) {
   clearData(); S.wsId = id || null;
+  S.filters = { cat: "", card: "", member: "", q: "", from: "", to: "", open: false };
   if (!id) { renderTop(); renderAll(); return; }
   localStorage.setItem("ws_" + S.user.uid, id);
   const byTime = (a, b) => (a.order ?? 99) - (b.order ?? 99) || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
@@ -541,8 +651,12 @@ document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => {
 $("#m-prev").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); subExpenses(); renderHome(); };
 $("#m-next").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); subExpenses(); renderHome(); };
 document.querySelectorAll("#chart-mode button").forEach((b) => (b.onclick = () => { S.mode = b.dataset.m; document.querySelectorAll("#chart-mode button").forEach((x) => x.classList.toggle("on", x === b)); renderHome(); }));
-$("#fab").onclick = () => openExpense();
-$("#fund-add").onclick = () => openFundForm();
+$("#fab").onclick = () => { if (S.page === "funds") openFundMenu(); else openExpense(); };
+$("#filter-toggle").onclick = () => { S.filters.open = !S.filters.open; renderHome(); };
+$("#filter-clear").onclick = () => { S.filters = { cat: "", card: "", member: "", q: "", from: "", to: "", open: S.filters.open }; renderHome(); };
+["flt-cat", "flt-card", "flt-mem", "flt-from", "flt-to"].forEach((id) => { const el = $("#" + id); if (el) el.onchange = () => { readFilters(); renderHome(); }; });
+const fltQ = $("#flt-q");
+if (fltQ) fltQ.oninput = () => { readFilters(); renderHome(); };
 $("#ws-btn").onclick = openWsPicker;
 $("#me-btn").onclick = () => openProfile();
 $("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
@@ -557,7 +671,45 @@ function renderTop() {
   const name = S.profile.name || fallbackName();
   $("#me-btn").innerHTML = avatarEl(S.profile.avatar, name, "av sm");
 }
-function renderAll() { renderTop(); if (!S.user) return; if (S.page === "home") renderHome(); if (S.page === "funds") renderFunds(); if (S.page === "settings") renderSettings(); }
+function syncFab() {
+  const fab = $("#fab");
+  if (!fab) return;
+  const show = !!S.user && (S.page === "home" || S.page === "funds");
+  fab.classList.toggle("hidden", !show);
+  fab.setAttribute("aria-label", S.page === "funds" ? t("fundMenu") : t("addExpense"));
+}
+function renderAll() { renderTop(); syncFab(); if (!S.user) return; if (S.page === "home") renderHome(); if (S.page === "funds") renderFunds(); if (S.page === "settings") renderSettings(); }
+function readFilters() {
+  const f = S.filters;
+  f.cat = $("#flt-cat") ? $("#flt-cat").value : f.cat;
+  f.card = $("#flt-card") ? $("#flt-card").value : f.card;
+  f.member = $("#flt-mem") ? $("#flt-mem").value : f.member;
+  f.q = $("#flt-q") ? $("#flt-q").value : f.q;
+  f.from = $("#flt-from") ? $("#flt-from").value : f.from;
+  f.to = $("#flt-to") ? $("#flt-to").value : f.to;
+}
+function activeFilterCount() {
+  const f = S.filters;
+  return [f.cat, f.card, f.member, (f.q || "").trim(), f.from, f.to].filter(Boolean).length;
+}
+function applyExpenseFilters(list) {
+  const f = S.filters;
+  const q = (f.q || "").trim().toLowerCase();
+  return list.filter((e) => {
+    if (f.cat && e.categoryId !== f.cat) return false;
+    if (f.card && e.cardId !== f.card) return false;
+    if (f.member && e.memberUid !== f.member) return false;
+    if (q && !String(e.remark || "").toLowerCase().includes(q)) return false;
+    if (f.from && (e.date || "") < f.from) return false;
+    if (f.to && (e.date || "") > f.to) return false;
+    return true;
+  });
+}
+function setSelectHtml(el, html, value) {
+  if (!el) return;
+  if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; }
+  if (el.value !== value) el.value = value;
+}
 function renderInvites() {
   $("#invites").innerHTML = S.invites.map((w) => {
     const owner = w.memberInfo?.[w.ownerUid];
@@ -584,7 +736,27 @@ function cardOf(id) { return S.cards.find((c) => c.id === id); }
 function renderHome() {
   if (!$("#m-label")) return;
   $("#m-label").textContent = monthLabel(S.month);
+  const range = monthRange(S.month);
+  if (S.filters.from && (S.filters.from < range.start || S.filters.from > range.end)) S.filters.from = "";
+  if (S.filters.to && (S.filters.to < range.start || S.filters.to > range.end)) S.filters.to = "";
+  const catOpts = `<option value="">${esc(t("allCategories"))}</option>` + S.cats.map((c) => `<option value="${esc(c.id)}">${esc(catLabel(c))}</option>`).join("");
+  const cardOpts = `<option value="">${esc(t("allCards"))}</option>` + S.cards.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  const memOpts = `<option value="">${esc(t("allMembers"))}</option>` + memberList().map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
+  setSelectHtml($("#flt-cat"), catOpts, S.filters.cat);
+  setSelectHtml($("#flt-card"), cardOpts, S.filters.card);
+  setSelectHtml($("#flt-mem"), memOpts, S.filters.member);
+  ["flt-from", "flt-to"].forEach((id) => { const el = $("#" + id); if (!el) return; el.min = range.start; el.max = range.end; if (document.activeElement !== el) el.value = id === "flt-from" ? S.filters.from : S.filters.to; });
+  const qEl = $("#flt-q");
+  if (qEl && document.activeElement !== qEl && qEl.value !== S.filters.q) qEl.value = S.filters.q;
+  const filtersEl = $("#filters");
+  if (filtersEl) filtersEl.classList.toggle("hidden", !S.filters.open);
+  const n = activeFilterCount();
+  const nEl = $("#filter-n");
+  if (nEl) nEl.textContent = n ? String(n) : "";
+  const clearBtn = $("#filter-clear");
+  if (clearBtn) clearBtn.classList.toggle("hidden", !n);
   const ex = [...S.expenses].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const shown = applyExpenseFilters(ex);
   const total = ex.reduce((s, e) => s + Number(e.amount || 0), 0);
   $("#m-total").textContent = fmt(total);
   $("#m-code").textContent = currencyOf(ws()).code;
@@ -614,12 +786,15 @@ function renderHome() {
   const labels = rows.map((r) => r.label);
   const data = rows.map((r) => r.value);
   const sliceColors = labels.map((_, i) => colors[i % colors.length]);
+  const chartSig = S.theme + "|" + labels.join("\n") + "|" + data.join(",");
   const canvas = $("#pie"), empty = $("#chart-empty");
   empty.textContent = t("emptyChart");
   if (!labels.length) {
     if (chart) { chart.destroy(); chart = null; }
+    renderHome.chartSig = "";
     canvas.classList.add("hidden"); empty.classList.remove("hidden");
-  } else if (window.Chart) {
+  } else if (window.Chart && renderHome.chartSig !== chartSig) {
+    renderHome.chartSig = chartSig;
     canvas.classList.remove("hidden"); empty.classList.add("hidden");
     const border = chartBorder();
     if (!chart) chart = new Chart(canvas, { type: "doughnut", data: { labels, datasets: [{ data, backgroundColor: sliceColors, borderColor: border, borderWidth: 3, hoverOffset: 6 }] }, options: { cutout: "64%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => " " + c.label + ": " + fmt(c.parsed) } } }, animation: { duration: 350 } } });
@@ -630,9 +805,15 @@ function renderHome() {
     const ico = r.photo ? `<img class="lg-av" alt="" src="${esc(r.photo)}">` : (r.icon ? `<span class="lg-em">${esc(r.icon)}</span>` : "");
     return `<span class="lg"><i style="background:${sliceColors[i]}"></i>${ico}${esc(r.label)} <b>${fmt(r.value)}</b> <small>${total ? Math.round((r.value / total) * 100) : 0}%</small></span>`;
   }).join("");
+  const sumEl = $("#filter-sum");
+  if (sumEl) {
+    const filtering = n > 0;
+    sumEl.classList.toggle("hidden", !filtering);
+    sumEl.textContent = filtering ? t("showing", { n: shown.length, total: ex.length }) : "";
+  }
   const byDay = {};
-  ex.forEach((e) => (byDay[e.date] = byDay[e.date] || []).push(e));
-  $("#exp-list").innerHTML = ex.length ? Object.keys(byDay).map((d) => {
+  shown.forEach((e) => (byDay[e.date] = byDay[e.date] || []).push(e));
+  $("#exp-list").innerHTML = shown.length ? Object.keys(byDay).map((d) => {
     const items = byDay[d], sum = items.reduce((s, e) => s + Number(e.amount || 0), 0);
     return `<div class="day-h"><span>${dayLabel(d)}</span><span>${fmt(sum)}</span></div><div class="card" style="padding:4px 14px">` + items.map((e) => {
       const cat = catOf(e.categoryId), cn = cat?.name || t("uncategorized");
@@ -641,37 +822,159 @@ function renderHome() {
       const icon = safeIcon(cat?.icon);
       const bubble = icon ? `<div class="ic emo" style="--c:${color}">${esc(icon)}</div>` : `<div class="ic letter" style="--c:${color};background:${color}">${esc(firstChar(cn))}</div>`;
       const info = ws()?.memberInfo?.[e.memberUid];
-      const remark = e.remark ? " · " + esc(e.remark) : "";
-      return `<div class="item" data-id="${esc(e.id)}">${bubble}<div class="mid"><div class="ttl">${esc(cn)}</div><div class="sub">${avatarEl(info?.avatar, memberName(e.memberUid), "av xs")}<span class="txt">${esc(cardOf(e.cardId)?.name || t("unspecified"))} · ${esc(memberName(e.memberUid))}${remark}</span></div></div><div class="amt">-${fmt(e.amount)}</div></div>`;
+      const remark = e.remark ? `<div class="remark">${esc(e.remark)}</div>` : "";
+      const badge = e.receiptId ? `<span class="receipt-tag" title="${esc(t("receipt"))}">🧾</span>` : "";
+      return `<div class="item" data-id="${esc(e.id)}">${bubble}<div class="mid"><div class="ttl">${esc(cn)}${badge}</div><div class="sub">${avatarEl(info?.avatar, memberName(e.memberUid), "av xs")}<span class="txt">${esc(cardOf(e.cardId)?.name || t("unspecified"))} · ${esc(memberName(e.memberUid))}</span></div>${remark}</div><div class="amt">-${fmt(e.amount)}</div></div>`;
     }).join("") + `</div>`;
-  }).join("") : `<div class="empty">${t("emptyMonth")}</div>`;
+  }).join("") : `<div class="empty">${ex.length ? t("noMatch") : t("emptyMonth")}</div>`;
   $("#exp-list").querySelectorAll(".item").forEach((el) => (el.onclick = () => openExpense(S.expenses.find((e) => e.id === el.dataset.id))));
 }
 const opts = (arr, sel, label = (x) => x.name, val = (x) => x.id) => arr.map((x) => `<option value="${esc(val(x))}"${val(x) === sel ? " selected" : ""}>${esc(label(x))}</option>`).join("");
 const catLabel = (c) => { const ic = safeIcon(c.icon); return ic ? ic + " " + c.name : c.name; };
 function memberList() { return (ws()?.members || []).map((uid) => ({ id: uid, name: memberName(uid) })); }
 
+function paintReceipt() {
+  const box = $("#receipt-box");
+  if (!box || !receiptDraft) return;
+  const img = safeReceipt(receiptDraft.image);
+  box.innerHTML = img
+    ? `<img class="receipt-preview" alt="" src="${img}"><button class="btn block" id="r-remove" type="button">${t("removeReceipt")}</button>`
+    : (receiptDraft.loading ? `<p class="muted">${t("wait")}</p>` : "");
+  const rm = $("#r-remove");
+  if (rm) rm.onclick = () => { receiptDraft.image = ""; receiptDraft.removed = true; receiptDraft.dirty = true; paintReceipt(); };
+}
+function compressReceipt(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type || "")) return reject(new Error("fail"));
+    if (file.size > 20 * 1024 * 1024) return reject(new Error("big"));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const paint = (width, height, quality) => {
+        canvas.width = width; canvas.height = height;
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas.toDataURL("image/jpeg", quality);
+      };
+      const fit = (edge) => {
+        const scale = Math.min(1, edge / Math.max(img.width, img.height, 1));
+        return [Math.max(1, Math.round(img.width * scale)), Math.max(1, Math.round(img.height * scale))];
+      };
+      let [w, h] = fit(1280);
+      let q = 0.72;
+      let data = paint(w, h, q);
+      while (data.length > 700000 && q > 0.45) { q = Math.round((q - 0.08) * 100) / 100; data = paint(w, h, q); }
+      let edge = Math.max(w, h);
+      while (data.length > 700000 && edge > 640) {
+        edge = Math.round(edge * 0.8);
+        [w, h] = fit(edge);
+        data = paint(w, h, 0.5);
+      }
+      URL.revokeObjectURL(url);
+      if (!safeReceipt(data)) reject(new Error("big")); else resolve(data);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("fail")); };
+    img.src = url;
+  });
+}
+async function recognizeReceipt(dataUrl) {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = (async () => {
+      const mod = await import("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js");
+      const lib = mod.default || mod;
+      const createWorker = lib.createWorker;
+      if (typeof createWorker !== "function") throw new Error("ocr");
+      return createWorker("eng+chi_sim");
+    })().catch((err) => { ocrWorkerPromise = null; throw err; });
+  }
+  const worker = await ocrWorkerPromise;
+  const res = await worker.recognize(dataUrl);
+  return (res && res.data && res.data.text) || "";
+}
+async function scanReceiptImage(dataUrl) {
+  if (!$("#f-amt")) return;
+  toast(t("scanning"));
+  try {
+    const parsed = parseReceiptText(await recognizeReceipt(dataUrl));
+    if (parsed.amount && $("#f-amt")) $("#f-amt").value = parsed.amount.toFixed(2);
+    if (parsed.date && $("#f-date")) $("#f-date").value = parsed.date;
+    if (parsed.merchant && $("#f-rem") && !$("#f-rem").value.trim()) $("#f-rem").value = parsed.merchant;
+    toast(parsed.amount || parsed.date || parsed.merchant ? t("scanDone") : t("scanEmpty"));
+  } catch (err) { toast(t("scanFail")); }
+}
 function openExpense(e) {
   if (!S.wsId) return toast(t("needWs"));
   const sym = currencyOf(ws()).symbol;
+  receiptDraft = { image: "", loading: !!(e && e.receiptId), removed: false, dirty: false, id: e?.receiptId || "" };
   openModal(`<h3>${e ? t("editExpense") : t("addExpense")}</h3>
   <label>${t("amount")} (${esc(sym)})</label><input id="f-amt" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${e ? esc(e.amount) : ""}">
   <label>${t("date")}</label><input id="f-date" type="date" value="${e?.date || today()}">
   <label>${t("category")}</label><select id="f-cat">${opts(S.cats, e?.categoryId, catLabel)}</select>
   <label>${t("card")}</label><select id="f-card">${opts(S.cards, e?.cardId)}</select>
   <label>${t("payer")}</label><select id="f-mem">${opts(memberList(), e?.memberUid || S.user.uid)}</select>
-  <label>${t("remark")}</label><input id="f-rem" type="text" placeholder="${esc(t("optional"))}" value="${esc(e?.remark || "")}">
+  <label>${t("remark")}</label><textarea id="f-rem" rows="3" placeholder="${esc(t("optional"))}">${esc(e?.remark || "")}</textarea>
+  <label>${t("receipt")}</label><div id="receipt-box"></div>
+  <div class="btns"><button class="btn" id="r-cam" type="button">${t("takePhoto")}</button><button class="btn" id="r-gal" type="button">${t("choosePhoto")}</button></div>
+  <button class="btn block" id="r-scan" type="button">${t("scanReceipt")}</button>
+  <p class="muted">${t("receiptHint")}</p>
+  <input id="r-file" type="file" accept="image/*" class="hidden">
   <div class="btns">${e ? `<button class="btn danger" id="f-del" type="button">${t("delete")}</button>` : ""}<button class="btn" id="f-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="f-save" type="button">${t("save")}</button></div>`);
   if (!e) setTimeout(() => $("#f-amt")?.focus(), 100);
+  const file = $("#r-file");
+  const pick = (capture, scan) => { file.dataset.scan = scan ? "1" : ""; if (capture) file.setAttribute("capture", "environment"); else file.removeAttribute("capture"); file.click(); };
+  $("#r-cam").onclick = () => pick(true, false);
+  $("#r-gal").onclick = () => pick(false, false);
+  file.onchange = async () => {
+    const f = file.files && file.files[0];
+    file.value = "";
+    if (!f) return;
+    try {
+      const data = await compressReceipt(f);
+      receiptDraft.image = data; receiptDraft.removed = false; receiptDraft.dirty = true; receiptDraft.loading = false;
+      paintReceipt();
+      if (file.dataset.scan === "1") { file.dataset.scan = ""; scanReceiptImage(data); }
+    } catch (err) { toast(err && err.message === "big" ? t("photoTooBig") : t("photoFail")); }
+  };
+  $("#r-scan").onclick = () => {
+    const img = safeReceipt(receiptDraft.image);
+    if (img) scanReceiptImage(img);
+    else pick(false, true);
+  };
+  if (e && e.receiptId) {
+    getDoc(doc(wsRef("receipts"), e.receiptId)).then((snap) => {
+      if (!receiptDraft || receiptDraft.id !== e.receiptId || receiptDraft.dirty) return;
+      receiptDraft.loading = false;
+      receiptDraft.image = snap.exists() ? safeReceipt(snap.data().image) : "";
+      paintReceipt();
+    }).catch(() => { if (receiptDraft) { receiptDraft.loading = false; paintReceipt(); } });
+  }
   $("#f-cancel").onclick = closeModal;
   $("#f-save").onclick = () => {
     const amount = Math.round(parseFloat($("#f-amt").value) * 100) / 100;
     if (!(amount > 0)) return toast(t("needAmount"));
     const data = { date: $("#f-date").value || today(), amount, categoryId: $("#f-cat").value, cardId: $("#f-card").value, memberUid: $("#f-mem").value, remark: $("#f-rem").value.trim() };
-    const p = e ? updateDoc(doc(wsRef("expenses"), e.id), data) : addDoc(wsRef("expenses"), { ...data, createdBy: S.user.uid, createdAt: serverTimestamp() });
-    p.catch((x) => toast(errMsg(x))); closeModal(); toast(t("saved"));
+    const expRef = e ? doc(wsRef("expenses"), e.id) : doc(wsRef("expenses"));
+    const image = safeReceipt(receiptDraft && receiptDraft.image);
+    if (receiptDraft && receiptDraft.removed && e && e.receiptId) {
+      deleteDoc(doc(wsRef("receipts"), e.receiptId)).catch((x) => toast(errMsg(x)));
+      data.receiptId = deleteField();
+    } else if (receiptDraft && receiptDraft.dirty && image) {
+      const rref = e && e.receiptId ? doc(wsRef("receipts"), e.receiptId) : doc(wsRef("receipts"));
+      setDoc(rref, { expenseId: expRef.id, image, createdAt: serverTimestamp() }, { merge: true }).catch((x) => toast(errMsg(x)));
+      data.receiptId = rref.id;
+    }
+    const op = e ? updateDoc(expRef, data) : setDoc(expRef, { ...data, createdBy: S.user.uid, createdAt: serverTimestamp() });
+    op.catch((x) => toast(errMsg(x))); closeModal(); toast(t("saved"));
   };
-  if (e) $("#f-del").onclick = () => { if (confirm(t("confirmDeleteExpense"))) { deleteDoc(doc(wsRef("expenses"), e.id)).catch((x) => toast(errMsg(x))); closeModal(); } };
+  if (e) $("#f-del").onclick = () => {
+    if (!confirm(t("confirmDeleteExpense"))) return;
+    if (e.receiptId) deleteDoc(doc(wsRef("receipts"), e.receiptId)).catch((x) => toast(errMsg(x)));
+    deleteDoc(doc(wsRef("expenses"), e.id)).catch((x) => toast(errMsg(x)));
+    closeModal();
+  };
 }
 
 /* ---------- Workspaces ---------- */
@@ -703,6 +1006,34 @@ function renderFunds() {
       ${pos.map(([uid, v], i) => `<div class="mbar">${avatarEl(ws()?.memberInfo?.[uid]?.avatar, memberName(uid), "av xs")}<span class="nm">${esc(memberName(uid))}</span><div class="bar"><div style="width:${sum ? (v / sum) * 100 : 0}%;background:${colors[(i + 1) % colors.length]}"></div></div><span>${sum ? Math.round((v / sum) * 100) : 0}%</span></div>`).join("")}</div>`;
   }).join("") : `<div class="empty">${t("emptyFunds")}</div>`;
   $("#fund-list").querySelectorAll(".fund").forEach((el) => (el.onclick = () => openFund(el.dataset.id)));
+}
+function openFundMenu() {
+  if (!S.wsId) return toast(t("needWs"));
+  openModal(`<h3>${t("fundMenu")}</h3><div class="choice-list"><button class="btn primary block" id="fm-new" type="button">${t("newGoal")}</button><button class="btn block" id="fm-txn" type="button">${t("addTxn")}</button></div>`);
+  $("#fm-new").onclick = () => openFundForm();
+  $("#fm-txn").onclick = () => { if (!S.funds.length) { toast(t("needFund")); openFundForm(); } else openQuickTxn(); };
+}
+function openQuickTxn() {
+  if (!S.funds.length) return toast(t("needFund"));
+  openModal(`<h3>${t("addTxn")}</h3>
+  <label>${t("chooseFund")}</label><select id="qt-fund">${opts(S.funds, S.funds[0].id)}</select>
+  <div class="seg" id="qt-type"><button type="button" data-t="deposit" class="on">${t("deposit")}</button><button type="button" data-t="withdraw">${t("withdraw")}</button></div>
+  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="qt-amt" type="number" inputmode="decimal" placeholder="0.00">
+  <label>${t("date")}</label><input id="qt-date" type="date" value="${today()}">
+  <label>${t("payer")}</label><select id="qt-mem">${opts(memberList(), S.user.uid)}</select>
+  <label>${t("remark")}</label><input id="qt-rem" placeholder="${esc(t("optional"))}">
+  <div class="btns"><button class="btn" id="qt-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="qt-save" type="button">${t("confirm")}</button></div>`);
+  let type = "deposit";
+  $("#qt-type").querySelectorAll("button").forEach((b) => (b.onclick = () => { type = b.dataset.t; $("#qt-type").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
+  $("#qt-cancel").onclick = closeModal;
+  $("#qt-save").onclick = () => {
+    const amount = Math.round(parseFloat($("#qt-amt").value) * 100) / 100;
+    const fundId = $("#qt-fund").value;
+    if (!fundId) return toast(t("needFund"));
+    if (!(amount > 0)) return toast(t("needAmount"));
+    addDoc(wsRef("funds", fundId, "txns"), { type, amount, date: $("#qt-date").value || today(), memberUid: $("#qt-mem").value, remark: $("#qt-rem").value.trim(), createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+    toast(t("recorded")); closeModal();
+  };
 }
 function openFundForm(f) {
   openModal(`<h3>${f ? t("editGoal") : t("newGoal")}</h3><label>${t("goalName")}</label><input id="fd-name" value="${esc(f?.name || "")}" placeholder="${esc(t("goalPh"))}">
@@ -747,10 +1078,59 @@ function openFund(id) {
 }
 
 /* ---------- Profile, icons, settings ---------- */
-function openEmojiPicker(title, emojis, current, onPick) {
-  openModal(`<h3>${esc(title)}</h3><div class="emoji-grid">${emojis.map((e, i) => `<button type="button" class="emoji-btn${e === current ? " on" : ""}" data-i="${i}">${e}</button>`).join("")}</div><button class="btn block" id="em-close" type="button">${t("cancel")}</button>`);
-  $("#em-close").onclick = closeModal;
-  $("#sheet").querySelectorAll(".emoji-btn").forEach((b) => (b.onclick = () => { const emoji = emojis[Number(b.dataset.i)]; closeModal(); onPick(emoji); }));
+function ensureEmojiPicker() {
+  if (customElements.get("emoji-picker")) return Promise.resolve();
+  if (!emojiReady) emojiReady = import("https://cdn.jsdelivr.net/npm/emoji-picker-element@" + EMOJI_VER + "/index.js");
+  return emojiReady;
+}
+async function openFullEmojiPicker(current, onPick, onCancel) {
+  try {
+    await ensureEmojiPicker();
+    const zh = S.lang !== "en";
+    if (zh && !emojiZh) emojiZh = import("https://cdn.jsdelivr.net/npm/emoji-picker-element@" + EMOJI_VER + "/i18n/zh_CN.js").then((m) => m.default);
+    const i18n = zh ? await emojiZh : null;
+    const src = "https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1/" + (zh ? "zh" : "en") + "/emojibase/data.json";
+    openModal(`<h3>${t("pickIcon")}</h3><emoji-picker class="${S.theme === "dark" ? "dark" : "light"}" locale="${zh ? "zh" : "en"}" data-source="${src}"></emoji-picker><button class="btn block" id="em-close" type="button">${t("cancel")}</button>`);
+    const picker = $("#sheet").querySelector("emoji-picker");
+    if (i18n && picker) picker.i18n = i18n;
+    if (picker) picker.addEventListener("emoji-click", (ev) => {
+      const emoji = ev.detail && (ev.detail.unicode || (ev.detail.emoji && ev.detail.emoji.unicode));
+      const safe = safeIcon(emoji);
+      if (!safe) return;
+      closeModal();
+      onPick(safe);
+    });
+    $("#em-close").onclick = () => { closeModal(); if (onCancel) onCancel(); };
+  } catch (err) { toast(t("emojiFail")); if (onCancel) onCancel(); }
+}
+function openCatForm(cat, draft) {
+  const icon = (draft && draft.icon) || safeIcon(cat && cat.icon) || "🏷️";
+  const name = draft && draft.name != null ? draft.name : ((cat && cat.name) || "");
+  openModal(`<h3>${cat ? t("editCategory") : t("newCat")}</h3>
+    <label>${t("catName")}</label><input id="c-name" maxlength="40" value="${esc(name)}">
+    <label>${t("pickIcon")}</label><button class="ic-pick" id="c-icon" type="button">${esc(icon)}</button>
+    <div class="btns">${cat ? `<button class="btn danger" id="c-del" type="button">${t("delete")}</button>` : ""}<button class="btn" id="c-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="c-save" type="button">${t("save")}</button></div>`);
+  $("#c-cancel").onclick = closeModal;
+  $("#c-icon").onclick = () => {
+    const typed = $("#c-name") ? $("#c-name").value : name;
+    openFullEmojiPicker(icon, (emoji) => openCatForm(cat, { name: typed, icon: emoji }), () => openCatForm(cat, { name: typed, icon }));
+  };
+  $("#c-save").onclick = () => {
+    const n = $("#c-name").value.trim();
+    if (!n) return toast(t("needName"));
+    const op = cat
+      ? updateDoc(doc(wsRef("categories"), cat.id), { name: n, icon })
+      : addDoc(wsRef("categories"), { name: n, icon, order: S.cats.length, createdAt: serverTimestamp() });
+    op.catch((x) => toast(errMsg(x)));
+    closeModal();
+    toast(t("saved"));
+  };
+  if (cat && $("#c-del")) $("#c-del").onclick = () => {
+    if (!confirm(t("confirmDelete"))) return;
+    deleteDoc(doc(wsRef("categories"), cat.id)).catch((x) => toast(errMsg(x)));
+    closeModal();
+  };
+  onEnter($("#c-name"), () => $("#c-save").click());
 }
 function openAvatarPicker(nameOverride) {
   const useName = String(nameOverride || S.profile.name || fallbackName()).trim();
@@ -802,11 +1182,11 @@ function renderSettings() {
     const catRow = (c) => {
       const icon = safeIcon(c.icon);
       const face = icon ? esc(icon) : esc(firstChar(c.name));
-      return `<div class="list-row"><button class="ic-pick${icon ? "" : " letter"}" type="button" data-ci="${c.id}">${face}</button><span class="grow">${esc(c.name)}</span><button class="del" type="button" data-k="categories" data-id="${c.id}">${t("delete")}</button></div>`;
+      return `<div class="list-row"><button class="ic-pick${icon ? "" : " letter"}" type="button" data-edit="${c.id}">${face}</button><button class="grow cat-name" type="button" data-edit="${c.id}">${esc(c.name)}</button><button class="del" type="button" data-k="categories" data-id="${c.id}">${t("delete")}</button></div>`;
     };
     const cardRow = (c) => `<div class="list-row"><span class="grow">${esc(c.name)}</span><button class="del" type="button" data-k="cards" data-id="${c.id}">${t("delete")}</button></div>`;
     parts.push(`<div class="card"><b class="sec-title">${t("wsName")}</b><div class="inline"><input id="s-name" value="${esc(w.name)}"><button class="btn primary" id="s-rename" type="button">${t("save")}</button></div><label class="sec-title">${t("currency")}</label><select id="s-cur">${currencyOptions(currencyOf(w).code)}</select><div class="muted">${t("currencyHint")}</div></div>`);
-    parts.push(`<div class="card"><b class="sec-title">${t("categories")}</b>${S.cats.map(catRow).join("")}<div class="inline"><button class="ic-pick" id="s-caticon" type="button">${esc(pendingCatIcon)}</button><input id="s-cat" placeholder="${esc(t("newCat"))}"><button class="btn primary" id="s-addcat" type="button">${t("add")}</button></div></div>`);
+    parts.push(`<div class="card"><b class="sec-title">${t("categories")}</b>${S.cats.map(catRow).join("")}<button class="btn block" id="s-addcat" type="button">${t("add")}</button></div>`);
     parts.push(`<div class="card"><b class="sec-title">${t("cards")}</b>${S.cards.map(cardRow).join("")}<div class="inline"><input id="s-card" placeholder="${esc(t("newCardPh"))}"><button class="btn primary" id="s-addcard" type="button">${t("add")}</button></div></div>`);
     parts.push(`<div class="card"><b class="sec-title">${t("members")}</b>${(w.members || []).map((uid) => `<div class="list-row"><span class="who">${avatarEl(w.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<span class="meta">${esc(memberName(uid))}${uid === w.ownerUid ? ` <span class="muted">（${t("owner")}）</span>` : ""}<span class="muted em">${esc(w.memberInfo?.[uid]?.email || "")}</span></span></span>${isOwner && uid !== w.ownerUid ? `<button class="del" type="button" data-rm="${uid}">${t("remove")}</button>` : ""}</div>`).join("")}
       ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
@@ -837,17 +1217,11 @@ function renderSettings() {
       w.currency = code;
       updateDoc(wsRef(), { currency: code }).then(() => toast(t("saved"))).catch((x) => toast(errMsg(x)));
     };
-    $("#s-caticon").onclick = () => openEmojiPicker(t("pickIcon"), CAT_ICONS, pendingCatIcon, (emoji) => { pendingCatIcon = emoji; const b = $("#s-caticon"); if (b) b.textContent = emoji; });
-    const addCat = () => { const n = $("#s-cat").value.trim(); if (!n) return; addDoc(wsRef("categories"), { name: n, icon: pendingCatIcon, order: S.cats.length, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x))); pendingCatIcon = "🏷️"; };
-    $("#s-addcat").onclick = addCat;
-    onEnter($("#s-cat"), addCat);
+    $("#s-addcat").onclick = () => openCatForm(null);
+    el.querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => openCatForm(S.cats.find((c) => c.id === b.dataset.edit))));
     const addCard = () => { const n = $("#s-card").value.trim(); if (n) addDoc(wsRef("cards"), { name: n, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x))); };
     $("#s-addcard").onclick = addCard;
     onEnter($("#s-card"), addCard);
-    el.querySelectorAll("[data-ci]").forEach((b) => (b.onclick = () => {
-      const cat = S.cats.find((c) => c.id === b.dataset.ci);
-      openEmojiPicker(t("pickIcon"), CAT_ICONS, safeIcon(cat?.icon), (emoji) => updateDoc(doc(wsRef("categories"), b.dataset.ci), { icon: emoji }).catch((x) => toast(errMsg(x))));
-    }));
     el.querySelectorAll("[data-k]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmDelete"))) deleteDoc(doc(wsRef(a.dataset.k), a.dataset.id)).catch((x) => toast(errMsg(x))); }));
     const invite = () => {
       const email = $("#s-inv").value.trim().toLowerCase();
