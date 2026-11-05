@@ -54,6 +54,11 @@ try {
   </header>
   <div id="invites"></div>
   <section id="page-home" class="page">
+    <div id="no-ws" class="card hidden">
+      <h2 data-i18n="noWsYet">还没有自己的账本</h2>
+      <p class="muted" data-i18n="noWsHint">可以新建一个，或接受上面的邀请。</p>
+      <button id="create-own" class="btn primary block" type="button" data-i18n="createOwn">创建我的账本</button>
+    </div>
     <div class="card hero">
       <div class="month-bar"><button id="m-prev" type="button">‹</button><span id="m-label"></span><button id="m-next" type="button">›</button></div>
       <div class="total"><span data-i18n="monthSpend">本月支出</span><b id="m-total">¥0.00</b><em id="m-code">CNY</em></div>
@@ -97,11 +102,30 @@ try {
     <div class="sec-head"><h2 data-i18n="fundsTitle">存款目标</h2></div>
     <div id="fund-list"></div>
   </section>
+  <section id="page-report" class="page hidden">
+    <h2 data-i18n="reportTitle">月报</h2>
+    <div class="card">
+      <div class="inline">
+        <div><label for="rep-a" data-i18n="monthA">查看月份</label><input id="rep-a" type="month"></div>
+        <div><label for="rep-b" data-i18n="monthB">对比月份</label><input id="rep-b" type="month"></div>
+      </div>
+    </div>
+    <div class="card" id="rep-summary"></div>
+    <div class="card"><div class="chart-wrap wide"><canvas id="cmp-chart"></canvas></div></div>
+    <div class="card" id="rep-cats"></div>
+    <div class="card" id="rep-cards"></div>
+    <div class="card" id="rep-members"></div>
+    <div class="card">
+      <b class="sec-title" data-i18n="trendTitle">近 6 个月</b>
+      <div class="chart-wrap wide"><canvas id="trend-chart"></canvas></div>
+    </div>
+  </section>
   <section id="page-settings" class="page hidden"><div id="settings"></div></section>
   <button id="fab" class="fab hidden" type="button">＋</button>
   <nav class="tabs">
     <button type="button" data-p="home" class="on"><span class="tab-ico" aria-hidden="true">🏠</span><span data-i18n="tabHome">首页</span></button>
     <button type="button" data-p="funds"><span class="tab-ico" aria-hidden="true">🐷</span><span data-i18n="tabFunds">存款</span></button>
+    <button type="button" data-p="report"><span class="tab-ico" aria-hidden="true">📊</span><span data-i18n="tabReport">月报</span></button>
     <button type="button" data-p="settings"><span class="tab-ico" aria-hidden="true">⚙️</span><span data-i18n="tabSettings">设置</span></button>
   </nav>
 </div>

@@ -96,6 +96,8 @@ input.money{text-align:right;font-variant-numeric:tabular-nums}
 .seg button{flex:1;padding:8px 4px;border-radius:10px;color:var(--m);font-weight:700;font-size:13px}
 .seg button.on{background:var(--card);color:var(--t);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .chart-wrap{position:relative;max-width:230px;margin:14px auto 4px}
+.chart-wrap.wide{max-width:100%;height:240px}
+.chart-wrap.wide canvas{max-height:240px}
 .empty-chart{text-align:center;padding:22px 8px}
 .legend{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
 .lg{display:inline-flex;align-items:center;gap:4px;background:var(--chip);border-radius:999px;padding:5px 10px;font-size:12px;color:var(--t)}
@@ -123,6 +125,16 @@ input.money{text-align:right;font-variant-numeric:tabular-nums}
 .filters .inline > div{flex:1;min-width:0}
 .cat-name{text-align:left;font-weight:700;padding:6px 0}
 .choice-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.rep-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.rep-totals span{display:block;color:var(--m);font-size:12px}
+.rep-totals b{font-size:16px}
+.cmp-row{display:grid;grid-template-columns:1.3fr .9fr .9fr .7fr;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.cmp-row.head{color:var(--m);font-size:12px;font-weight:700}
+.cmp-row span:not(:first-child){text-align:right}
+.up{color:var(--r);font-weight:800}
+.down{color:var(--g);font-weight:800}
+.flat{color:var(--m);font-weight:700}
+textarea[readonly]{background:var(--chip)}
 button:disabled{opacity:.45}
 .checkline{display:flex;align-items:center;gap:8px;margin:10px 0;font-weight:700}
 .checkline input{width:auto;margin:0}
@@ -168,6 +180,7 @@ button:disabled{opacity:.45}
 .del{color:var(--r);font-size:14px;font-weight:700;padding:6px}
 .ws-opt{padding:14px;border-radius:14px;border:1px solid var(--b);margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--input)}
 .ws-opt.on{border-color:var(--g);background:var(--ok-bg)}
+.invite-title{margin:8px 16px 0;font-size:13px;font-weight:800;color:var(--m)}
 .invite{margin:8px 14px;background:var(--warn-bg);border:1px solid var(--warn-b);color:var(--t);border-radius:14px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .invite .txt{display:flex;align-items:center;gap:8px;min-width:0}
 .invite .actions{display:flex;gap:6px;flex:none}

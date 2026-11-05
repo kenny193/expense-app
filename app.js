@@ -149,7 +149,31 @@ const I18N_ROWS = [
   ["revoke", "撤销", "Revoke"],
   ["invitePh", "对方注册用的邮箱", "Their email"],
   ["invite", "邀请", "Invite"],
-  ["inviteHint", "对方用这个邮箱登录后，顶部会出现邀请，点接受就能一起记账。", "When they sign in with this email, the invite shows at the top."],
+  ["inviteHint", "对方用这个邮箱注册或登录后，打开应用就能看到邀请。把下面的文字发给对方即可。", "After they register or sign in with this email, the invite is waiting in the app. Send them the message below."],
+  ["inviteShare", "我想邀请你一起记账「{ws}」。请用这个邮箱注册或登录：{email}\n打开：{url}", "Join my expense workspace “{ws}”. Register or sign in with this email: {email}\nOpen: {url}"],
+  ["copyInvite", "复制邀请", "Copy invite"],
+  ["shareInvite", "发送", "Share"],
+  ["copied", "已复制，可以发给对方了", "Copied. You can send it now."],
+  ["copyFail", "请长按文字手动复制", "Select the text and copy it."],
+  ["invitesTitle", "你收到的邀请", "Invitations"],
+  ["noWsYet", "还没有自己的账本", "You don't have a workspace yet"],
+  ["noWsHint", "可以新建一个，或接受上面的邀请。", "Create one, or accept an invite above."],
+  ["createOwn", "创建我的账本", "Create my workspace"],
+  ["reportTitle", "月报", "Report"],
+  ["tabReport", "月报", "Report"],
+  ["monthA", "查看月份", "This month"],
+  ["monthB", "对比月份", "Compare with"],
+  ["compareCats", "分类对比", "By category"],
+  ["compareCards", "账户对比", "By card"],
+  ["compareMembers", "成员对比", "By member"],
+  ["trendTitle", "近 6 个月", "Last 6 months"],
+  ["vs", "对比", "vs"],
+  ["change", "变化", "Change"],
+  ["higher", "↑ {n}%", "↑ {n}%"],
+  ["lower", "↓ {n}%", "↓ {n}%"],
+  ["flat", "持平", "No change"],
+  ["newSpend", "新增", "New"],
+  ["goneSpend", "没有了", "None"],
   ["inviteSent", "邀请已发送", "Invite sent"],
   ["badEmail", "邮箱格式不正确", "That email doesn't look right"],
   ["alreadyMember", "已经是成员了", "They're already a member"],
@@ -256,11 +280,15 @@ const S = {
   theme: storedTheme(), lang: storedLang(),
   wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {}, ledger: [], settlements: [],
   month: new Date(), mode: "cat", page: "home",
+  reportA: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  reportB: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
+  reportRows: [], reportKey: "",
   filters: { cat: "", card: "", member: "", q: "", from: "", to: "", open: false }
 };
 let unsubWs = [], unsubData = [], unsubTxns = {}, chart = null;
 let localProfileTouched = false, localThemeTouched = false, localLangTouched = false;
-let regMode = false, registerCreate = false, pendingName = "";
+let regMode = false, registerCreate = false, pendingName = "", creatingWs = false;
+const APP_URL = "https://kenny193.github.io/expense-app/";
 let receiptDraft = null, ocrWorkerPromise = null;
 const emojiCache = {};
 const EMOJI_GROUPS = [["all", "emojiAll"], [0, "emojiSmile"], [1, "emojiPeople"], [3, "emojiNature"], [4, "emojiFood"], [5, "emojiTravel"], [6, "emojiActivity"], [7, "emojiObjects"], [8, "emojiSymbols"], [9, "emojiFlags"]];
@@ -448,6 +476,7 @@ function setTheme(theme, persist) {
     if (S.user) { localThemeTouched = true; pushUserDoc(); }
   }
   if ((changed || persist) && S.user && S.page === "home") renderHome();
+  if ((changed || persist) && S.user && S.page === "report") renderReport();
 }
 function setLang(lang, persist) {
   const next = lang === "en" ? "en" : "zh";
@@ -550,7 +579,11 @@ function handleUserDoc(snap) {
     }
     if (!localThemeTouched && (d.theme === "fresh" || d.theme === "warm" || d.theme === "dark")) setTheme(d.theme, false);
     if (!localLangTouched && (d.lang === "zh" || d.lang === "en")) setLang(d.lang, false);
-  } else if (!localProfileTouched) adoptWorkspaceProfile();
+  } else if (!localProfileTouched) {
+    adoptWorkspaceProfile();
+    if (!S.profile.name) S.profile.name = fallbackName();
+    pushUserDoc();
+  }
   if (localThemeTouched || localLangTouched || localProfileTouched) pushUserDoc();
   maybeMirror();
   renderTop();
@@ -607,23 +640,26 @@ onAuthStateChanged(auth, (u) => {
     avatar: cached?.avatar || ""
   };
   pendingName = "";
-  const email = (u.email || "").toLowerCase();
+  const email = (u.email || "").trim().toLowerCase();
   let firstLoad = true;
   unsubWs.push(onSnapshot(query(collection(db, "workspaces"), where("members", "array-contains", u.uid)), (snap) => {
     S.wsList = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
     if (!S.userDocExists && !localProfileTouched) adoptWorkspaceProfile();
-    if (!S.wsList.length && firstLoad && !snap.metadata.fromCache) {
-      if (registerCreate) return;
-      firstLoad = false;
-      createWorkspace(t("personalWs"), u);
+    if (!S.wsList.length) {
+      renderNoWs();
+      if (firstLoad && !snap.metadata.fromCache && !registerCreate && !creatingWs) {
+        firstLoad = false;
+        const id = createWorkspace(t("personalWs"), u);
+        localStorage.setItem("ws_" + u.uid, id);
+      }
       return;
     }
     firstLoad = false;
     const saved = localStorage.getItem("ws_" + u.uid);
     if (!ws()) switchWs((S.wsList.find((w) => w.id === saved) || S.wsList[0])?.id);
     else { maybeMirror(); renderTop(); renderAll(); }
-  }, (e) => toast(errMsg(e))));
-  unsubWs.push(onSnapshot(query(collection(db, "workspaces"), where("invitedEmails", "array-contains", email)), (snap) => {
+  }, (e) => { toast(errMsg(e)); renderNoWs(); }));
+  if (email) unsubWs.push(onSnapshot(query(collection(db, "workspaces"), where("invitedEmails", "array-contains", email)), (snap) => {
     S.invites = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((w) => !(w.members || []).includes(u.uid));
     renderInvites();
   }, () => {}));
@@ -634,17 +670,21 @@ onAuthStateChanged(auth, (u) => {
 
 function createWorkspace(name, u = S.user) {
   const ref = doc(collection(db, "workspaces"));
-  const b = writeBatch(db);
-  const display = (u.uid === S.user?.uid && S.profile.name) ? S.profile.name : (u.displayName || (u.email || "").split("@")[0]);
+  const display = (u.uid === S.user?.uid && S.profile.name) ? S.profile.name : (u.displayName || (u.email || "").split("@")[0] || "User");
   const avatar = u.uid === S.user?.uid ? (S.profile.avatar || "") : "";
-  b.set(ref, {
-    name, ownerUid: u.uid, members: [u.uid], currency: "CNY", invitedEmails: [], createdAt: serverTimestamp(),
-    memberInfo: { [u.uid]: { email: (u.email || "").toLowerCase(), name: display, avatar } }
-  });
   const lang = S.lang === "en" ? "en" : "zh";
-  DEFAULT_CATS.forEach((c, i) => b.set(doc(collection(ref, "categories")), { name: c[lang], icon: c.icon, order: i, createdAt: serverTimestamp() }));
-  b.set(doc(collection(ref, "cards")), { name: t("defaultCard"), createdAt: serverTimestamp() });
-  b.commit().catch((e) => toast(errMsg(e)));
+  creatingWs = true;
+  // Save the workspace by itself first. Rules can only see a member after this
+  // write exists, so categories and the default card go in a second write.
+  setDoc(ref, {
+    name, ownerUid: u.uid, members: [u.uid], currency: "CNY", invitedEmails: [], createdAt: serverTimestamp(),
+    memberInfo: { [u.uid]: { email: (u.email || "").trim().toLowerCase(), name: display, avatar } }
+  }).then(() => {
+    const b = writeBatch(db);
+    DEFAULT_CATS.forEach((c, i) => b.set(doc(collection(ref, "categories")), { name: c[lang], icon: c.icon, order: i, createdAt: serverTimestamp() }));
+    b.set(doc(collection(ref, "cards")), { name: lang === "en" ? "Default card" : "默认卡", createdAt: serverTimestamp() });
+    return b.commit();
+  }).catch((e) => toast(errMsg(e))).finally(() => { creatingWs = false; });
   return ref.id;
 }
 function clearData() {
@@ -660,6 +700,7 @@ function switchWs(id) {
   const byTime = (a, b) => (a.order ?? 99) - (b.order ?? 99) || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
   const sub = (name, key, after) => unsubData.push(onSnapshot(wsRef(name), (s) => { S[key] = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byTime); after && after(); renderAll(); }, (e) => toast(errMsg(e))));
   sub("categories", "cats"); sub("cards", "cards"); sub("funds", "funds", syncTxns); sub("settlements", "settlements");
+  subReport();
   unsubData.push(onSnapshot(wsRef("expenses"), (s) => { S.ledger = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (S.page === "home") renderHome(); }, (e) => toast(errMsg(e))));
   subExpenses(); renderTop(); renderAll();
 }
@@ -680,7 +721,7 @@ function syncTxns() {
 document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => {
   S.page = b.dataset.p;
   document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-  ["home", "funds", "settings"].forEach((p) => $("#page-" + p).classList.toggle("hidden", p !== S.page));
+  ["home", "funds", "report", "settings"].forEach((p) => $("#page-" + p).classList.toggle("hidden", p !== S.page));
   window.scrollTo(0, 0); renderAll();
 }));
 $("#m-prev").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); subExpenses(); renderHome(); };
@@ -694,6 +735,14 @@ const fltQ = $("#flt-q");
 if (fltQ) fltQ.oninput = () => { readFilters(); renderHome(); };
 const settleAdd = $("#settle-add");
 if (settleAdd) settleAdd.onclick = () => openSettlement();
+const createOwn = $("#create-own");
+if (createOwn) createOwn.onclick = () => {
+  if (!S.user || creatingWs) return;
+  const id = createWorkspace(t("personalWs"));
+  localStorage.setItem("ws_" + S.user.uid, id);
+};
+$("#rep-a") && ($("#rep-a").onchange = () => { S.reportA = parseMonthInput($("#rep-a").value, S.reportA); subReport(); renderReport(); });
+$("#rep-b") && ($("#rep-b").onchange = () => { S.reportB = parseMonthInput($("#rep-b").value, S.reportB); subReport(); renderReport(); });
 $("#ws-btn").onclick = openWsPicker;
 $("#me-btn").onclick = () => openProfile();
 $("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
@@ -715,7 +764,18 @@ function syncFab() {
   fab.classList.toggle("hidden", !show);
   fab.setAttribute("aria-label", S.page === "funds" ? t("fundMenu") : t("addExpense"));
 }
-function renderAll() { renderTop(); syncFab(); if (!S.user) return; if (S.page === "home") renderHome(); if (S.page === "funds") renderFunds(); if (S.page === "settings") renderSettings(); }
+function renderNoWs() {
+  const el = $("#no-ws");
+  if (el) el.classList.toggle("hidden", !S.user || !!S.wsId);
+}
+function renderAll() {
+  renderTop(); syncFab(); renderNoWs();
+  if (!S.user) return;
+  if (S.page === "home") renderHome();
+  if (S.page === "funds") renderFunds();
+  if (S.page === "report") { subReport(); renderReport(); }
+  if (S.page === "settings") renderSettings();
+}
 function readFilters() {
   const f = S.filters;
   f.cat = $("#flt-cat") ? $("#flt-cat").value : f.cat;
@@ -748,15 +808,18 @@ function setSelectHtml(el, html, value) {
   if (el.value !== value) el.value = value;
 }
 function renderInvites() {
-  $("#invites").innerHTML = S.invites.map((w) => {
+  const box = $("#invites");
+  if (!box) return;
+  if (!S.invites.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<p class="invite-title">${t("invitesTitle")}</p>` + S.invites.map((w) => {
     const owner = w.memberInfo?.[w.ownerUid];
     return `<div class="invite"><span class="txt">${avatarEl(owner?.avatar, memberNameOf(w, w.ownerUid), "av xs")}<span>${t("inviteLine", { name: esc(memberNameOf(w, w.ownerUid)), ws: esc(w.name) })}</span></span><span class="actions"><button class="btn small primary" type="button" data-acc="${w.id}">${t("accept")}</button><button class="btn small" type="button" data-dec="${w.id}">${t("decline")}</button></span></div>`;
   }).join("");
-  $("#invites").querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => acceptInvite(b.dataset.acc)));
-  $("#invites").querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => declineInvite(b.dataset.dec)));
+  box.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => acceptInvite(b.dataset.acc)));
+  box.querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => declineInvite(b.dataset.dec)));
 }
 async function acceptInvite(id) {
-  const u = S.user, email = u.email.toLowerCase();
+  const u = S.user, email = (u.email || "").trim().toLowerCase();
   const name = S.profile.name || u.displayName || email.split("@")[0];
   try {
     await updateDoc(doc(db, "workspaces", id), { members: arrayUnion(u.uid), [`memberInfo.${u.uid}`]: { email, name, avatar: S.profile.avatar || "" }, invitedEmails: arrayRemove(email) });
@@ -764,7 +827,135 @@ async function acceptInvite(id) {
   } catch (e) { toast(errMsg(e)); }
 }
 async function declineInvite(id) {
-  try { await updateDoc(doc(db, "workspaces", id), { invitedEmails: arrayRemove(S.user.email.toLowerCase()) }); } catch (e) { toast(errMsg(e)); }
+  try { await updateDoc(doc(db, "workspaces", id), { invitedEmails: arrayRemove((S.user.email || "").trim().toLowerCase()) }); } catch (e) { toast(errMsg(e)); }
+}
+
+function inviteMessage(email, wsName) {
+  return t("inviteShare", { email, ws: wsName, url: APP_URL });
+}
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+    else throw new Error("copy");
+    toast(t("copied"));
+  } catch (e) { toast(t("copyFail")); }
+}
+function shareInvite(text) {
+  if (navigator.share) navigator.share({ text }).catch(() => copyText(text));
+  else copyText(text);
+}
+function monthValue(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
+function parseMonthInput(v, fallback) {
+  const m = /^(\d{4})-(\d{2})$/.exec(v || "");
+  if (!m) return fallback;
+  return new Date(Number(m[1]), Number(m[2]) - 1, 1);
+}
+function reportWindow() {
+  const a = S.reportA, b = S.reportB;
+  const latest = a > b ? a : b;
+  const trendStart = new Date(latest.getFullYear(), latest.getMonth() - 5, 1);
+  const earliest = [a, b, trendStart].sort((x, y) => x - y)[0];
+  const latestDate = a > b ? a : b;
+  return { start: monthRange(earliest).start, end: monthRange(latestDate).end };
+}
+function subReport() {
+  if (!S.wsId) return;
+  const { start, end } = reportWindow();
+  const key = S.wsId + "|" + start + "|" + end;
+  if (S.reportKey === key && S.reportUnsub) return;
+  if (S.reportUnsub) { S.reportUnsub(); S.reportUnsub = null; }
+  S.reportKey = key;
+  S.reportUnsub = onSnapshot(query(wsRef("expenses"), where("date", ">=", start), where("date", "<=", end)), (s) => {
+    S.reportRows = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (S.page === "report") renderReport();
+  }, (e) => toast(errMsg(e)));
+  unsubData.push(() => { if (S.reportUnsub) { S.reportUnsub(); S.reportUnsub = null; S.reportKey = ""; } });
+}
+function rowsInMonth(d) {
+  const prefix = monthValue(d);
+  return (S.reportRows || []).filter((e) => (e.date || "").startsWith(prefix));
+}
+function groupTotals(rows, mode) {
+  const map = {};
+  rows.forEach((e) => {
+    if (mode === "member") expenseParts(e).forEach((p) => { const n = memberName(p.uid); map[n] = (map[n] || 0) + p.amount; });
+    else if (mode === "card") { const n = cardOf(e.cardId)?.name || t("unspecified"); map[n] = (map[n] || 0) + Number(e.amount || 0); }
+    else { const n = catOf(e.categoryId)?.name || t("uncategorized"); map[n] = (map[n] || 0) + Number(e.amount || 0); }
+  });
+  return map;
+}
+function cmpRows(mapA, mapB) {
+  const keys = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
+  return [...keys].map((k) => {
+    const a = mapA[k] || 0, b = mapB[k] || 0;
+    return { k, a, b, diff: a - b };
+  }).sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
+}
+function changeHtml(a, b) {
+  if (a <= 0 && b <= 0) return `<span class="flat">${t("flat")}</span>`;
+  if (b <= 0 && a > 0) return `<span class="up">${t("newSpend")}</span>`;
+  if (a <= 0 && b > 0) return `<span class="down">${t("goneSpend")}</span>`;
+  const p = Math.round(((a - b) / b) * 100);
+  if (!p) return `<span class="flat">${t("flat")}</span>`;
+  return p > 0 ? `<span class="up">${t("higher", { n: p })}</span>` : `<span class="down">${t("lower", { n: Math.abs(p) })}</span>`;
+}
+function cmpTable(title, rows) {
+  const head = `<div class="cmp-row head"><span>${esc(title)}</span><span>${esc(monthLabel(S.reportA))}</span><span>${esc(monthLabel(S.reportB))}</span><span>${t("change")}</span></div>`;
+  const body = rows.length ? rows.map((r) => `<div class="cmp-row"><span>${esc(r.k)}</span><span>${fmt(r.a)}</span><span>${fmt(r.b)}</span>${changeHtml(r.a, r.b)}</div>`).join("") : `<p class="muted">${t("emptyChart")}</p>`;
+  return `<b class="sec-title">${esc(title)}</b>${head}${body}`;
+}
+function chartColors() {
+  const css = getComputedStyle(document.documentElement);
+  return {
+    text: css.getPropertyValue("--t").trim() || "#111",
+    muted: css.getPropertyValue("--m").trim() || "#666",
+    line: css.getPropertyValue("--line").trim() || "#ddd",
+    a: (palette()[0]),
+    b: (palette()[3])
+  };
+}
+let cmpChart = null, trendChart = null;
+function renderReport() {
+  const sum = $("#rep-summary");
+  if (!sum) return;
+  const aIn = $("#rep-a"), bIn = $("#rep-b");
+  if (aIn && document.activeElement !== aIn) aIn.value = monthValue(S.reportA);
+  if (bIn && document.activeElement !== bIn) bIn.value = monthValue(S.reportB);
+  if (!S.wsId) { sum.innerHTML = `<p class="muted">${t("noWsYet")}</p>`; return; }
+  const rowsA = rowsInMonth(S.reportA), rowsB = rowsInMonth(S.reportB);
+  const totalA = rowsA.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const totalB = rowsB.reduce((s, e) => s + Number(e.amount || 0), 0);
+  sum.innerHTML = `<div class="rep-totals"><div><span>${esc(monthLabel(S.reportA))}</span><b>${fmt(totalA)}</b></div><div><span>${esc(monthLabel(S.reportB))}</span><b>${fmt(totalB)}</b></div><div><span>${t("change")}</span><b>${changeHtml(totalA, totalB)}</b></div></div>`;
+  const cats = cmpRows(groupTotals(rowsA, "cat"), groupTotals(rowsB, "cat"));
+  const cards = cmpRows(groupTotals(rowsA, "card"), groupTotals(rowsB, "card"));
+  const members = cmpRows(groupTotals(rowsA, "member"), groupTotals(rowsB, "member"));
+  $("#rep-cats").innerHTML = cmpTable(t("compareCats"), cats);
+  $("#rep-cards").innerHTML = cmpTable(t("compareCards"), cards);
+  $("#rep-members").innerHTML = cmpTable(t("compareMembers"), members);
+  const top = cats.slice(0, 8);
+  const colors = chartColors();
+  const cmp = $("#cmp-chart");
+  if (cmp && window.Chart) {
+    const data = {
+      labels: top.map((r) => r.k),
+      datasets: [
+        { label: monthLabel(S.reportA), data: top.map((r) => r.a), backgroundColor: colors.a, borderRadius: 6 },
+        { label: monthLabel(S.reportB), data: top.map((r) => r.b), backgroundColor: colors.b, borderRadius: 6 }
+      ]
+    };
+    const options = { indexAxis: "y", responsive: true, plugins: { legend: { labels: { color: colors.text } } }, scales: { x: { ticks: { color: colors.muted }, grid: { color: colors.line } }, y: { ticks: { color: colors.text }, grid: { display: false } } } };
+    if (!cmpChart) cmpChart = new Chart(cmp, { type: "bar", data, options });
+    else { cmpChart.data = data; cmpChart.options = options; cmpChart.update(); }
+  }
+  const months = [];
+  for (let i = 5; i >= 0; i--) months.push(new Date(S.reportA.getFullYear(), S.reportA.getMonth() - i, 1));
+  const trend = $("#trend-chart");
+  if (trend && window.Chart) {
+    const data = { labels: months.map(monthLabel), datasets: [{ label: t("monthSpend"), data: months.map((d) => rowsInMonth(d).reduce((s, e) => s + Number(e.amount || 0), 0)), backgroundColor: colors.a, borderRadius: 8 }] };
+    const options = { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: colors.muted }, grid: { display: false } }, y: { ticks: { color: colors.muted }, grid: { color: colors.line } } } };
+    if (!trendChart) trendChart = new Chart(trend, { type: "bar", data, options });
+    else { trendChart.data = data; trendChart.options = options; trendChart.update(); }
+  }
 }
 
 /* ---------- Home ---------- */
@@ -1465,7 +1656,11 @@ async function deleteWorkspaceFully(w) {
   const rest = S.wsList.filter((x) => x.id !== wsId);
   localStorage.removeItem("ws_" + S.user.uid);
   if (rest[0]) switchWs(rest[0].id);
-  else { const id = createWorkspace(t("personalWs")); localStorage.setItem("ws_" + S.user.uid, id); switchWs(id); }
+  else {
+    switchWs(null);
+    const id = createWorkspace(t("personalWs"));
+    localStorage.setItem("ws_" + S.user.uid, id);
+  }
   toast(t("wsDeleted"));
 }
 function openDeleteWorkspace(w) {
@@ -1562,9 +1757,11 @@ function renderSettings() {
     parts.push(`<div class="card"><b class="sec-title">${t("categories")}</b>${S.cats.map(catRow).join("")}<button class="btn block" id="s-addcat" type="button">${t("add")}</button></div>`);
     parts.push(`<div class="card"><b class="sec-title">${t("cards")}</b>${S.cards.map(cardRow).join("")}<div class="inline"><input id="s-card" placeholder="${esc(t("newCardPh"))}"><button class="btn primary" id="s-addcard" type="button">${t("add")}</button></div></div>`);
     parts.push(`<div class="card"><b class="sec-title">${t("members")}</b>${(w.members || []).map((uid) => `<div class="list-row"><span class="who">${avatarEl(w.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<span class="meta">${esc(memberName(uid))}${uid === w.ownerUid ? ` <span class="muted">（${t("owner")}）</span>` : ""}<span class="muted em">${esc(w.memberInfo?.[uid]?.email || "")}</span></span></span>${isOwner && uid !== w.ownerUid ? `<button class="del" type="button" data-rm="${uid}">${t("remove")}</button>` : ""}</div>`).join("")}
-      ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
+      ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="btn small" type="button" data-share="${esc(em)}">${t("copyInvite")}</button> <button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
       <div class="inline"><input id="s-inv" type="email" placeholder="${esc(t("invitePh"))}"><button class="btn primary" id="s-invite" type="button">${t("invite")}</button></div>
-      <div class="muted">${t("inviteHint")}</div></div>`);
+      <div class="muted">${t("inviteHint")}</div>
+      <textarea id="s-share" rows="4" readonly>${esc(S.inviteText || "")}</textarea>
+      <div class="btns"><button class="btn" id="s-copy" type="button">${t("copyInvite")}</button><button class="btn primary" id="s-send" type="button">${t("shareInvite")}</button></div></div>`);
     if (isOwner) parts.push(`<button class="btn danger block" id="s-delete-ws" type="button">${t("deleteWs")}</button>`);
     else parts.push(`<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`);
   }
@@ -1597,14 +1794,19 @@ function renderSettings() {
     $("#s-addcard").onclick = addCard;
     onEnter($("#s-card"), addCard);
     el.querySelectorAll("[data-k]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmDelete"))) deleteDoc(doc(wsRef(a.dataset.k), a.dataset.id)).catch((x) => toast(errMsg(x))); }));
+    const showInvite = (email) => { S.inviteText = inviteMessage(email, w.name); const box = $("#s-share"); if (box) box.value = S.inviteText; };
     const invite = () => {
       const email = $("#s-inv").value.trim().toLowerCase();
       if (!/^\S+@\S+\.\S+$/.test(email)) return toast(t("badEmail"));
-      if (Object.values(w.memberInfo || {}).some((m) => m.email === email)) return toast(t("alreadyMember"));
-      updateDoc(wsRef(), { invitedEmails: arrayUnion(email) }).then(() => toast(t("inviteSent"))).catch((x) => toast(errMsg(x)));
+      if ((w.members || []).some((uid) => (w.memberInfo?.[uid]?.email || "") === email)) return toast(t("alreadyMember"));
+      if ((w.invitedEmails || []).includes(email)) { showInvite(email); shareInvite(S.inviteText); return; }
+      updateDoc(wsRef(), { invitedEmails: arrayUnion(email) }).then(() => { showInvite(email); toast(t("inviteSent")); shareInvite(S.inviteText); }).catch((x) => toast(errMsg(x)));
     };
     $("#s-invite").onclick = invite;
     onEnter($("#s-inv"), invite);
+    if ($("#s-copy")) $("#s-copy").onclick = () => copyText($("#s-share").value || inviteMessage($("#s-inv").value.trim().toLowerCase() || t("email"), w.name));
+    if ($("#s-send")) $("#s-send").onclick = () => shareInvite($("#s-share").value || inviteMessage($("#s-inv").value.trim().toLowerCase() || t("email"), w.name));
+    el.querySelectorAll("[data-share]").forEach((b) => (b.onclick = () => { showInvite(b.dataset.share); copyText(S.inviteText); }));
     el.querySelectorAll("[data-unv]").forEach((a) => (a.onclick = () => updateDoc(wsRef(), { invitedEmails: arrayRemove(a.dataset.unv) }).catch((x) => toast(errMsg(x)))));
     el.querySelectorAll("[data-rm]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmRemove"))) updateDoc(wsRef(), { members: arrayRemove(a.dataset.rm), [`memberInfo.${a.dataset.rm}`]: deleteField() }).catch((x) => toast(errMsg(x))); }));
     if ($("#s-leave")) $("#s-leave").onclick = () => { if (confirm(t("confirmLeave"))) { const id = S.wsId; updateDoc(doc(db, "workspaces", id), { members: arrayRemove(S.user.uid) }).catch((x) => toast(errMsg(x))); localStorage.removeItem("ws_" + S.user.uid); switchWs(S.wsList.find((x) => x.id !== id)?.id); } };
