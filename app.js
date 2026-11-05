@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp, arrayUnion, arrayRemove, deleteField } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp, arrayUnion, arrayRemove, deleteField } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -39,7 +39,6 @@ const DEFAULT_CATS = [
   { zh: "其他", en: "Other", icon: "📦" }
 ];
 const PRESET_AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦄", "🐙", "🐶", "🐱", "🐻", "🐰", "🐧", "🦋", "🌸", "🍀", "⭐", "🌙", "🔥", "💎", "🌈", "☀️", "🎧", "🚀", "🍕", "⚽"];
-const EMOJI_VER = "1.29.1";
 const WK = { zh: ["日", "一", "二", "三", "四", "五", "六"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const I18N_ROWS = [
@@ -96,6 +95,39 @@ const I18N_ROWS = [
   ["removeReceipt", "移除小票", "Remove receipt"],
   ["receiptHint", "照片会缩小后存在账本里，不需要开通云存储。", "The photo is shrunk and saved in the workspace. No cloud storage setup."],
   ["emojiFail", "表情加载失败，请检查网络", "Couldn't load emojis. Check your connection."],
+  ["emojiAll", "全部", "All"],
+  ["emojiSmile", "表情", "Smileys"],
+  ["emojiPeople", "人物", "People"],
+  ["emojiNature", "动物", "Nature"],
+  ["emojiFood", "食物", "Food"],
+  ["emojiTravel", "旅行", "Travel"],
+  ["emojiActivity", "活动", "Activity"],
+  ["emojiObjects", "物品", "Objects"],
+  ["emojiSymbols", "符号", "Symbols"],
+  ["emojiFlags", "旗帜", "Flags"],
+  ["emojiSearch", "搜索表情", "Search emojis"],
+  ["emojiEmpty", "没有匹配的表情", "No matching emojis"],
+  ["deleteWs", "删除账本", "Delete workspace"],
+  ["deleteWsWarn", "会删除这个账本里的全部分类、账户、账单、小票和存款，而且无法恢复。", "This deletes every category, card, expense, receipt, and savings goal in this workspace. It cannot be undone."],
+  ["typeWsName", "输入 {name} 以确认", "Type {name} to confirm"],
+  ["wsDeleted", "账本已删除", "Workspace deleted"],
+  ["splitTitle", "分账", "Split"],
+  ["splitOn", "分摊", "Split"],
+  ["splitEqual", "平分", "Equal"],
+  ["splitByAmount", "金额", "Amount"],
+  ["splitPercent", "百分比", "Percent"],
+  ["splitHint", "付款人先垫付，再按下面的方式分摊。", "The payer covers it, then everyone takes a share."],
+  ["splitBad", "分摊加起来要等于这笔金额", "Shares must add up to the expense"],
+  ["splitBadPct", "百分比加起来要等于 100", "Percents must add up to 100"],
+  ["splitNeed", "请至少选一位成员", "Choose at least one person"],
+  ["owes", "{from} 应付 {to} {amount}", "{from} owes {to} {amount}"],
+  ["settledUp", "目前没有未结的账", "Nobody owes anyone right now"],
+  ["recordSettlement", "记结算", "Record settlement"],
+  ["settle", "结清", "Settle"],
+  ["paidBy", "谁付钱", "Paid by"],
+  ["paidTo", "付给谁", "Paid to"],
+  ["recentSettlements", "最近的结算", "Recent settlements"],
+  ["confirmDeleteSettlement", "删除这笔结算？", "Delete this settlement?"],
   ["noWs", "无账本", "No workspace"],
   ["profile", "个人资料", "Profile"],
   ["displayName", "昵称", "Display name"],
@@ -222,14 +254,16 @@ function storedLang() {
 const S = {
   user: null, profile: { name: "", avatar: "" }, profileReady: false, userDocExists: false,
   theme: storedTheme(), lang: storedLang(),
-  wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {},
+  wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {}, ledger: [], settlements: [],
   month: new Date(), mode: "cat", page: "home",
   filters: { cat: "", card: "", member: "", q: "", from: "", to: "", open: false }
 };
 let unsubWs = [], unsubData = [], unsubTxns = {}, chart = null;
 let localProfileTouched = false, localThemeTouched = false, localLangTouched = false;
 let regMode = false, registerCreate = false, pendingName = "";
-let receiptDraft = null, ocrWorkerPromise = null, emojiReady = null, emojiZh = null;
+let receiptDraft = null, ocrWorkerPromise = null;
+const emojiCache = {};
+const EMOJI_GROUPS = [["all", "emojiAll"], [0, "emojiSmile"], [1, "emojiPeople"], [3, "emojiNature"], [4, "emojiFood"], [5, "emojiTravel"], [6, "emojiActivity"], [7, "emojiObjects"], [8, "emojiSymbols"], [9, "emojiFlags"]];
 
 const ws = () => S.wsList.find((w) => w.id === S.wsId);
 const wsRef = (...p) => (p.length ? collection(db, "workspaces", S.wsId, ...p) : doc(db, "workspaces", S.wsId));
@@ -616,7 +650,7 @@ function createWorkspace(name, u = S.user) {
 function clearData() {
   unsubData.forEach((f) => f()); unsubData = [];
   Object.values(unsubTxns).forEach((f) => f()); unsubTxns = {};
-  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {} });
+  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, ledger: [], settlements: [] });
 }
 function switchWs(id) {
   clearData(); S.wsId = id || null;
@@ -625,7 +659,8 @@ function switchWs(id) {
   localStorage.setItem("ws_" + S.user.uid, id);
   const byTime = (a, b) => (a.order ?? 99) - (b.order ?? 99) || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
   const sub = (name, key, after) => unsubData.push(onSnapshot(wsRef(name), (s) => { S[key] = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byTime); after && after(); renderAll(); }, (e) => toast(errMsg(e))));
-  sub("categories", "cats"); sub("cards", "cards"); sub("funds", "funds", syncTxns);
+  sub("categories", "cats"); sub("cards", "cards"); sub("funds", "funds", syncTxns); sub("settlements", "settlements");
+  unsubData.push(onSnapshot(wsRef("expenses"), (s) => { S.ledger = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (S.page === "home") renderHome(); }, (e) => toast(errMsg(e))));
   subExpenses(); renderTop(); renderAll();
 }
 function subExpenses() {
@@ -657,6 +692,8 @@ $("#filter-clear").onclick = () => { S.filters = { cat: "", card: "", member: ""
 ["flt-cat", "flt-card", "flt-mem", "flt-from", "flt-to"].forEach((id) => { const el = $("#" + id); if (el) el.onchange = () => { readFilters(); renderHome(); }; });
 const fltQ = $("#flt-q");
 if (fltQ) fltQ.oninput = () => { readFilters(); renderHome(); };
+const settleAdd = $("#settle-add");
+if (settleAdd) settleAdd.onclick = () => openSettlement();
 $("#ws-btn").onclick = openWsPicker;
 $("#me-btn").onclick = () => openProfile();
 $("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
@@ -698,7 +735,7 @@ function applyExpenseFilters(list) {
   return list.filter((e) => {
     if (f.cat && e.categoryId !== f.cat) return false;
     if (f.card && e.cardId !== f.card) return false;
-    if (f.member && e.memberUid !== f.member) return false;
+    if (f.member && e.memberUid !== f.member && !(e.split && e.split.shares && e.split.shares[f.member] != null)) return false;
     if (q && !String(e.remark || "").toLowerCase().includes(q)) return false;
     if (f.from && (e.date || "") < f.from) return false;
     if (f.to && (e.date || "") > f.to) return false;
@@ -733,6 +770,161 @@ async function declineInvite(id) {
 /* ---------- Home ---------- */
 function catOf(id) { return S.cats.find((c) => c.id === id); }
 function cardOf(id) { return S.cards.find((c) => c.id === id); }
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+function moneyDigits(cents) {
+  const n = Math.max(0, Math.floor(Number(cents) || 0));
+  const whole = Math.floor(n / 100);
+  const frac = String(n % 100).padStart(2, "0");
+  return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + frac;
+}
+function centsFromAmount(amount) {
+  const n = Number(amount);
+  if (!isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100);
+}
+function setMoneyInput(input, amount) {
+  if (!input) return;
+  const cents = centsFromAmount(amount);
+  input.dataset.cents = String(cents);
+  input.value = moneyDigits(cents);
+}
+function readMoneyInput(input) {
+  if (!input) return 0;
+  if (input.dataset && input.dataset.cents != null && input.dataset.cents !== "") return Number(input.dataset.cents) / 100;
+  const digits = String(input.value || "").replace(/\D/g, "");
+  return (Number(digits) || 0) / 100;
+}
+function bindMoneyInput(input, amount, onChange) {
+  if (!input) return;
+  input.type = "text";
+  input.setAttribute("inputmode", "numeric");
+  input.setAttribute("autocomplete", "off");
+  input.setAttribute("enterkeyhint", "done");
+  input.classList.add("money");
+  const apply = (cents, notify) => {
+    cents = Math.max(0, Math.min(99999999999, Math.floor(Number(cents) || 0)));
+    const prev = input.dataset.cents;
+    input.dataset.cents = String(cents);
+    const next = moneyDigits(cents);
+    if (input.value !== next) input.value = next;
+    try { input.setSelectionRange(next.length, next.length); } catch (e) {}
+    if (notify && prev !== input.dataset.cents && onChange) onChange(cents / 100);
+  };
+  const fromText = (text, replace) => {
+    const digits = String(text || "").replace(/\D/g, "").slice(0, 11);
+    if (replace) return digits ? Number(digits) : 0;
+    let cents = Number(input.dataset.cents || 0);
+    for (const ch of digits) cents = cents * 10 + Number(ch);
+    return cents;
+  };
+  apply(centsFromAmount(amount), false);
+  if (input.dataset.moneyBound) return;
+  input.dataset.moneyBound = "1";
+  input.addEventListener("beforeinput", (e) => {
+    if (e.inputType === "insertText") {
+      e.preventDefault();
+      const all = input.selectionStart === 0 && input.selectionEnd === input.value.length;
+      apply(fromText(e.data, all), true);
+    } else if (e.inputType === "deleteContentBackward" || e.inputType === "deleteContentForward") {
+      e.preventDefault();
+      const all = input.selectionStart === 0 && input.selectionEnd === input.value.length && input.value.length;
+      apply(all ? 0 : Math.floor(Number(input.dataset.cents || 0) / 10), true);
+    } else if (e.inputType === "insertFromPaste") {
+      e.preventDefault();
+    }
+  });
+  input.addEventListener("paste", (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData && e.clipboardData.getData("text")) || "";
+    apply(fromText(text, true), true);
+  });
+  input.addEventListener("input", () => {
+    const digits = input.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+    const cents = digits ? Number(digits.slice(0, 11)) : 0;
+    if (String(cents) === input.dataset.cents && input.value === moneyDigits(cents)) return;
+    apply(cents, true);
+  });
+  input.addEventListener("focus", () => { try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} });
+}
+function expenseParts(e) {
+  const total = round2(e.amount);
+  const payer = e.memberUid || "";
+  const shares = e.split && e.split.shares;
+  if (!shares || typeof shares !== "object") return payer ? [{ uid: payer, amount: total }] : [];
+  const parts = Object.keys(shares).map((uid) => ({ uid, amount: round2(shares[uid]) })).filter((p) => p.uid && p.amount > 0);
+  const sum = round2(parts.reduce((s, p) => s + p.amount, 0));
+  if (!parts.length || Math.abs(sum - total) > 0.05) return payer ? [{ uid: payer, amount: total }] : [];
+  return parts;
+}
+function pairDebts() {
+  const net = {};
+  const add = (uid, v) => { if (!uid) return; net[uid] = round2((net[uid] || 0) + v); };
+  (S.ledger || []).forEach((e) => {
+    if (!e.split || !e.split.shares) return;
+    const total = round2(e.amount);
+    add(e.memberUid, total);
+    expenseParts(e).forEach((p) => add(p.uid, -p.amount));
+  });
+  (S.settlements || []).forEach((s) => {
+    const amt = round2(s.amount);
+    add(s.fromUid, amt);
+    add(s.toUid, -amt);
+  });
+  const cred = Object.entries(net).filter(([, v]) => v > 0.009).map(([uid, v]) => ({ uid, v }));
+  const debt = Object.entries(net).filter(([, v]) => v < -0.009).map(([uid, v]) => ({ uid, v: -v }));
+  cred.sort((a, b) => b.v - a.v);
+  debt.sort((a, b) => b.v - a.v);
+  const rows = [];
+  let i = 0, j = 0;
+  while (i < debt.length && j < cred.length) {
+    const pay = Math.min(debt[i].v, cred[j].v);
+    if (pay > 0.009) rows.push({ from: debt[i].uid, to: cred[j].uid, amount: round2(pay) });
+    debt[i].v = round2(debt[i].v - pay);
+    cred[j].v = round2(cred[j].v - pay);
+    if (debt[i].v <= 0.009) i++;
+    if (cred[j].v <= 0.009) j++;
+  }
+  return rows;
+}
+function renderSplitCard() {
+  const el = $("#split-lines");
+  if (!el) return;
+  const rows = pairDebts();
+  const recent = [...(S.settlements || [])].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 6);
+  const owing = rows.length ? rows.map((r) => `<div class="list-row"><span>${t("owes", { from: esc(memberName(r.from)), to: esc(memberName(r.to)), amount: fmt(r.amount) })}</span><button class="btn small" type="button" data-settle="${esc(r.from)}|${esc(r.to)}|${r.amount}">${t("settle")}</button></div>`).join("") : `<p class="muted">${t("settledUp")}</p>`;
+  const hist = recent.length ? `<p class="sec-title">${t("recentSettlements")}</p>` + recent.map((s) => `<div class="list-row"><span>${esc(memberName(s.fromUid))} → ${esc(memberName(s.toUid))}<br><span class="muted">${esc(s.date || "")} ${esc(s.remark || "")}</span></span><span>${fmt(s.amount)} <button class="del" type="button" data-sid="${esc(s.id)}">${t("delete")}</button></span></div>`).join("") : "";
+  el.innerHTML = owing + hist;
+  el.querySelectorAll("[data-settle]").forEach((b) => (b.onclick = () => {
+    const [from, to, amount] = b.dataset.settle.split("|");
+    openSettlement({ from, to, amount });
+  }));
+  el.querySelectorAll("[data-sid]").forEach((b) => (b.onclick = () => {
+    if (!confirm(t("confirmDeleteSettlement"))) return;
+    deleteDoc(doc(wsRef("settlements"), b.dataset.sid)).catch((x) => toast(errMsg(x)));
+  }));
+}
+function openSettlement(preset) {
+  if (!S.wsId) return toast(t("needWs"));
+  const members = memberList();
+  if (members.length < 2) return toast(t("splitNeed"));
+  openModal(`<h3>${t("recordSettlement")}</h3>
+    <label>${t("paidBy")}</label><select id="st-from">${opts(members, preset?.from || S.user.uid)}</select>
+    <label>${t("paidTo")}</label><select id="st-to">${opts(members, preset?.to || members.find((m) => m.id !== (preset?.from || S.user.uid))?.id)}</select>
+    <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="st-amt" type="text" inputmode="numeric" autocomplete="off">
+    <label>${t("date")}</label><input id="st-date" type="date" value="${today()}">
+    <label>${t("remark")}</label><input id="st-rem" placeholder="${esc(t("optional"))}">
+    <div class="btns"><button class="btn" id="st-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="st-save" type="button">${t("save")}</button></div>`);
+  bindMoneyInput($("#st-amt"), preset?.amount || 0);
+  $("#st-cancel").onclick = closeModal;
+  $("#st-save").onclick = () => {
+    const amount = readMoneyInput($("#st-amt"));
+    const fromUid = $("#st-from").value, toUid = $("#st-to").value;
+    if (!(amount > 0)) return toast(t("needAmount"));
+    if (!fromUid || !toUid || fromUid === toUid) return toast(t("splitNeed"));
+    addDoc(wsRef("settlements"), { fromUid, toUid, amount, date: $("#st-date").value || today(), remark: $("#st-rem").value.trim(), createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+    toast(t("recorded")); closeModal();
+  };
+}
 function renderHome() {
   if (!$("#m-label")) return;
   $("#m-label").textContent = monthLabel(S.month);
@@ -762,25 +954,32 @@ function renderHome() {
   $("#m-code").textContent = currencyOf(ws()).code;
   const colors = palette();
   const groups = new Map();
+  const addSlice = (label, icon, photo, value) => {
+    const g = groups.get(label) || { label, icon, photo, value: 0 };
+    g.value += Number(value) || 0;
+    if (!g.icon && icon) g.icon = icon;
+    if (!g.photo && photo) g.photo = photo;
+    groups.set(label, g);
+  };
   ex.forEach((e) => {
+    if (S.mode === "member") {
+      expenseParts(e).forEach((p) => {
+        const info = ws()?.memberInfo?.[p.uid];
+        const av = safeAvatar(info?.avatar);
+        addSlice(memberName(p.uid), av.startsWith("emoji:") ? av.slice(6) : "", av.startsWith("data:image/") ? av : "", p.amount);
+      });
+      return;
+    }
     let label, icon = "", photo = "";
     if (S.mode === "cat") {
       const c = catOf(e.categoryId);
       label = c?.name || t("uncategorized");
       icon = safeIcon(c?.icon);
-    } else if (S.mode === "card") {
+    } else {
       label = cardOf(e.cardId)?.name || t("unspecified");
       icon = "💳";
-    } else {
-      const info = ws()?.memberInfo?.[e.memberUid];
-      label = memberName(e.memberUid);
-      const av = safeAvatar(info?.avatar);
-      if (av.startsWith("emoji:")) icon = av.slice(6);
-      else if (av.startsWith("data:image/")) photo = av;
     }
-    const g = groups.get(label) || { label, icon, photo, value: 0 };
-    g.value += Number(e.amount || 0);
-    groups.set(label, g);
+    addSlice(label, icon, photo, e.amount);
   });
   const rows = [...groups.values()].sort((a, b) => b.value - a.value);
   const labels = rows.map((r) => r.label);
@@ -823,11 +1022,12 @@ function renderHome() {
       const bubble = icon ? `<div class="ic emo" style="--c:${color}">${esc(icon)}</div>` : `<div class="ic letter" style="--c:${color};background:${color}">${esc(firstChar(cn))}</div>`;
       const info = ws()?.memberInfo?.[e.memberUid];
       const remark = e.remark ? `<div class="remark">${esc(e.remark)}</div>` : "";
-      const badge = e.receiptId ? `<span class="receipt-tag" title="${esc(t("receipt"))}">🧾</span>` : "";
+      const badge = (e.receiptId ? `<span class="receipt-tag" title="${esc(t("receipt"))}">🧾</span>` : "") + (e.split && e.split.shares ? `<span class="receipt-tag">${esc(t("splitOn"))}</span>` : "");
       return `<div class="item" data-id="${esc(e.id)}">${bubble}<div class="mid"><div class="ttl">${esc(cn)}${badge}</div><div class="sub">${avatarEl(info?.avatar, memberName(e.memberUid), "av xs")}<span class="txt">${esc(cardOf(e.cardId)?.name || t("unspecified"))} · ${esc(memberName(e.memberUid))}</span></div>${remark}</div><div class="amt">-${fmt(e.amount)}</div></div>`;
     }).join("") + `</div>`;
   }).join("") : `<div class="empty">${ex.length ? t("noMatch") : t("emptyMonth")}</div>`;
   $("#exp-list").querySelectorAll(".item").forEach((el) => (el.onclick = () => openExpense(S.expenses.find((e) => e.id === el.dataset.id))));
+  renderSplitCard();
 }
 const opts = (arr, sel, label = (x) => x.name, val = (x) => x.id) => arr.map((x) => `<option value="${esc(val(x))}"${val(x) === sel ? " selected" : ""}>${esc(label(x))}</option>`).join("");
 const catLabel = (c) => { const ic = safeIcon(c.icon); return ic ? ic + " " + c.name : c.name; };
@@ -899,7 +1099,7 @@ async function scanReceiptImage(dataUrl) {
   toast(t("scanning"));
   try {
     const parsed = parseReceiptText(await recognizeReceipt(dataUrl));
-    if (parsed.amount && $("#f-amt")) $("#f-amt").value = parsed.amount.toFixed(2);
+    if (parsed.amount && $("#f-amt")) { $("#f-amt").value = parsed.amount.toFixed(2); $("#f-amt").dispatchEvent(new Event("input", { bubbles: true })); }
     if (parsed.date && $("#f-date")) $("#f-date").value = parsed.date;
     if (parsed.merchant && $("#f-rem") && !$("#f-rem").value.trim()) $("#f-rem").value = parsed.merchant;
     toast(parsed.amount || parsed.date || parsed.merchant ? t("scanDone") : t("scanEmpty"));
@@ -910,11 +1110,18 @@ function openExpense(e) {
   const sym = currencyOf(ws()).symbol;
   receiptDraft = { image: "", loading: !!(e && e.receiptId), removed: false, dirty: false, id: e?.receiptId || "" };
   openModal(`<h3>${e ? t("editExpense") : t("addExpense")}</h3>
-  <label>${t("amount")} (${esc(sym)})</label><input id="f-amt" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${e ? esc(e.amount) : ""}">
+  <label>${t("amount")} (${esc(sym)})</label><input id="f-amt" type="text" inputmode="numeric" autocomplete="off">
   <label>${t("date")}</label><input id="f-date" type="date" value="${e?.date || today()}">
   <label>${t("category")}</label><select id="f-cat">${opts(S.cats, e?.categoryId, catLabel)}</select>
   <label>${t("card")}</label><select id="f-card">${opts(S.cards, e?.cardId)}</select>
   <label>${t("payer")}</label><select id="f-mem">${opts(memberList(), e?.memberUid || S.user.uid)}</select>
+  <label class="checkline"><input id="f-split" type="checkbox" ${e && e.split && e.split.shares ? "checked" : ""}> ${t("splitOn")}</label>
+  <div id="split-box" class="${e && e.split && e.split.shares ? "" : "hidden"}">
+    <p class="muted">${t("splitHint")}</p>
+    <div class="seg" id="split-mode"><button type="button" data-m="equal">${t("splitEqual")}</button><button type="button" data-m="amount">${t("splitByAmount")}</button><button type="button" data-m="percent">${t("splitPercent")}</button></div>
+    <div id="split-members"></div>
+    <p id="split-preview" class="muted"></p>
+  </div>
   <label>${t("remark")}</label><textarea id="f-rem" rows="3" placeholder="${esc(t("optional"))}">${esc(e?.remark || "")}</textarea>
   <label>${t("receipt")}</label><div id="receipt-box"></div>
   <div class="btns"><button class="btn" id="r-cam" type="button">${t("takePhoto")}</button><button class="btn" id="r-gal" type="button">${t("choosePhoto")}</button></div>
@@ -923,6 +1130,105 @@ function openExpense(e) {
   <input id="r-file" type="file" accept="image/*" class="hidden">
   <div class="btns">${e ? `<button class="btn danger" id="f-del" type="button">${t("delete")}</button>` : ""}<button class="btn" id="f-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="f-save" type="button">${t("save")}</button></div>`);
   if (!e) setTimeout(() => $("#f-amt")?.focus(), 100);
+  const splitState = { mode: (e && e.split && (e.split.mode === "amount" || e.split.mode === "percent") && e.split.mode) || "equal" };
+  const paintSplit = () => {
+    const box = $("#split-box");
+    if (!box) return;
+    const on = $("#f-split") && $("#f-split").checked;
+    box.classList.toggle("hidden", !on);
+    if (!on) return;
+    $("#split-mode").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === splitState.mode));
+    const total = readMoneyInput($("#f-amt"));
+    const members = memberList();
+    $("#split-members").innerHTML = members.map((m) => {
+      if (splitState.mode === "equal") return `<label class="split-row"><input type="checkbox" data-uid="${esc(m.id)}" ${splitState.included[m.id] ? "checked" : ""}><span>${esc(m.name)}</span></label>`;
+      if (splitState.mode === "amount") return `<label class="split-row"><span>${esc(m.name)}</span><input class="split-amt" data-uid="${esc(m.id)}" type="text" inputmode="numeric" autocomplete="off"></label>`;
+      const val = splitState.inputs[m.id];
+      return `<label class="split-row"><span>${esc(m.name)}</span><input class="split-amt" data-uid="${esc(m.id)}" type="number" inputmode="decimal" step="0.01" value="${val != null && val !== "" ? esc(val) : ""}"></label>`;
+    }).join("");
+    $("#split-members").querySelectorAll("input").forEach((input) => {
+      const uid = input.dataset.uid;
+      if (input.type === "checkbox") input.onchange = () => { splitState.included[uid] = input.checked; paintSplit(); };
+      else if (splitState.mode === "amount") bindMoneyInput(input, splitState.inputs[uid] || 0, (v) => { splitState.inputs[uid] = v; updatePreview(); });
+      else input.oninput = () => { splitState.inputs[uid] = input.value; updatePreview(); };
+    });
+    updatePreview();
+  };
+  const sharesNow = () => {
+    const total = readMoneyInput($("#f-amt"));
+    if (!($("#f-split") && $("#f-split").checked)) return null;
+    if (!(total > 0)) return { error: "amount" };
+    const members = memberList();
+    if (splitState.mode === "equal") {
+      const ids = members.filter((m) => splitState.included[m.id]).map((m) => m.id);
+      if (!ids.length) return { error: "people" };
+      const base = Math.floor((total * 100) / ids.length) / 100;
+      let left = round2(total - base * ids.length);
+      const shares = {};
+      ids.forEach((id, i) => { shares[id] = round2(base + (i === 0 ? left : 0)); left = i === 0 ? 0 : left; });
+      return { shares };
+    }
+    if (splitState.mode === "amount") {
+      const shares = {};
+      let sum = 0;
+      members.forEach((m) => { const n = round2(splitState.inputs[m.id]); if (n > 0) { shares[m.id] = n; sum = round2(sum + n); } });
+      if (!Object.keys(shares).length) return { error: "people" };
+      if (Math.abs(sum - total) > 0.009) return { error: "sum" };
+      return { shares };
+    }
+    let pct = 0;
+    const raw = [];
+    members.forEach((m) => { const n = round2(splitState.inputs[m.id]); if (n > 0) { raw.push([m.id, n]); pct = round2(pct + n); } });
+    if (!raw.length) return { error: "people" };
+    if (Math.abs(pct - 100) > 0.05) return { error: "pct" };
+    const shares = {};
+    let used = 0;
+    raw.forEach(([id, n], i) => {
+      const amt = i === raw.length - 1 ? round2(total - used) : round2(total * n / 100);
+      shares[id] = amt;
+      used = round2(used + amt);
+    });
+    return { shares };
+  };
+  const updatePreview = () => {
+    const el = $("#split-preview");
+    if (!el || !($("#f-split") && $("#f-split").checked)) return;
+    const built = sharesNow();
+    if (!built || built.error === "amount") { el.textContent = ""; return; }
+    if (built.error === "people") { el.textContent = t("splitNeed"); return; }
+    if (built.error === "sum") { el.textContent = t("splitBad"); return; }
+    if (built.error === "pct") { el.textContent = t("splitBadPct"); return; }
+    el.textContent = Object.entries(built.shares).map(([uid, amt]) => memberName(uid) + " " + fmt(amt)).join(" · ");
+  };
+  (function initSplit() {
+    const total = round2(e && e.amount);
+    const saved = e && e.split && e.split.shares ? e.split.shares : null;
+    splitState.included = {};
+    splitState.inputs = {};
+    memberList().forEach((m) => {
+      const amt = saved ? round2(saved[m.id]) : 0;
+      splitState.included[m.id] = saved ? amt > 0 : true;
+      if (splitState.mode === "percent") splitState.inputs[m.id] = saved && total ? (amt > 0 ? round2(amt / total * 100) : "") : "";
+      else if (splitState.mode === "amount") splitState.inputs[m.id] = saved && amt > 0 ? amt : "";
+    });
+    $("#split-mode").querySelectorAll("button").forEach((b) => (b.onclick = () => {
+      const prev = sharesNow();
+      splitState.mode = b.dataset.m;
+      if (prev && prev.shares) {
+        const totalNow = readMoneyInput($("#f-amt"));
+        memberList().forEach((m) => {
+          const amt = round2(prev.shares[m.id]);
+          splitState.included[m.id] = amt > 0;
+          if (splitState.mode === "percent") splitState.inputs[m.id] = amt > 0 && totalNow ? round2(amt / totalNow * 100) : "";
+          else if (splitState.mode === "amount") splitState.inputs[m.id] = amt > 0 ? amt : "";
+        });
+      }
+      paintSplit();
+    }));
+    if ($("#f-split")) $("#f-split").onchange = paintSplit;
+    bindMoneyInput($("#f-amt"), e ? e.amount : 0, () => paintSplit());
+    paintSplit();
+  })();
   const file = $("#r-file");
   const pick = (capture, scan) => { file.dataset.scan = scan ? "1" : ""; if (capture) file.setAttribute("capture", "environment"); else file.removeAttribute("capture"); file.click(); };
   $("#r-cam").onclick = () => pick(true, false);
@@ -953,9 +1259,17 @@ function openExpense(e) {
   }
   $("#f-cancel").onclick = closeModal;
   $("#f-save").onclick = () => {
-    const amount = Math.round(parseFloat($("#f-amt").value) * 100) / 100;
+    const amount = readMoneyInput($("#f-amt"));
     if (!(amount > 0)) return toast(t("needAmount"));
     const data = { date: $("#f-date").value || today(), amount, categoryId: $("#f-cat").value, cardId: $("#f-card").value, memberUid: $("#f-mem").value, remark: $("#f-rem").value.trim() };
+    if ($("#f-split") && $("#f-split").checked) {
+      const built = sharesNow();
+      if (!built || built.error === "people") return toast(t("splitNeed"));
+      if (!built || built.error === "sum") return toast(t("splitBad"));
+      if (!built || built.error === "pct") return toast(t("splitBadPct"));
+      if (!built || built.error) return toast(t("needAmount"));
+      data.split = { mode: splitState.mode, shares: built.shares };
+    } else if (e && e.split) data.split = deleteField();
     const expRef = e ? doc(wsRef("expenses"), e.id) : doc(wsRef("expenses"));
     const image = safeReceipt(receiptDraft && receiptDraft.image);
     if (receiptDraft && receiptDraft.removed && e && e.receiptId) {
@@ -1018,16 +1332,17 @@ function openQuickTxn() {
   openModal(`<h3>${t("addTxn")}</h3>
   <label>${t("chooseFund")}</label><select id="qt-fund">${opts(S.funds, S.funds[0].id)}</select>
   <div class="seg" id="qt-type"><button type="button" data-t="deposit" class="on">${t("deposit")}</button><button type="button" data-t="withdraw">${t("withdraw")}</button></div>
-  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="qt-amt" type="number" inputmode="decimal" placeholder="0.00">
+  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="qt-amt" type="text" inputmode="numeric" autocomplete="off">
   <label>${t("date")}</label><input id="qt-date" type="date" value="${today()}">
   <label>${t("payer")}</label><select id="qt-mem">${opts(memberList(), S.user.uid)}</select>
   <label>${t("remark")}</label><input id="qt-rem" placeholder="${esc(t("optional"))}">
   <div class="btns"><button class="btn" id="qt-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="qt-save" type="button">${t("confirm")}</button></div>`);
+  bindMoneyInput($("#qt-amt"), 0);
   let type = "deposit";
   $("#qt-type").querySelectorAll("button").forEach((b) => (b.onclick = () => { type = b.dataset.t; $("#qt-type").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
   $("#qt-cancel").onclick = closeModal;
   $("#qt-save").onclick = () => {
-    const amount = Math.round(parseFloat($("#qt-amt").value) * 100) / 100;
+    const amount = readMoneyInput($("#qt-amt"));
     const fundId = $("#qt-fund").value;
     if (!fundId) return toast(t("needFund"));
     if (!(amount > 0)) return toast(t("needAmount"));
@@ -1037,11 +1352,12 @@ function openQuickTxn() {
 }
 function openFundForm(f) {
   openModal(`<h3>${f ? t("editGoal") : t("newGoal")}</h3><label>${t("goalName")}</label><input id="fd-name" value="${esc(f?.name || "")}" placeholder="${esc(t("goalPh"))}">
-  <label>${t("goalAmount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fd-target" type="number" inputmode="decimal" value="${f ? esc(f.target) : ""}">
+  <label>${t("goalAmount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fd-target" type="text" inputmode="numeric" autocomplete="off">
   <div class="btns"><button class="btn" id="fd-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="fd-save" type="button">${t("save")}</button></div>`);
+  bindMoneyInput($("#fd-target"), f ? f.target : 0);
   $("#fd-cancel").onclick = closeModal;
   $("#fd-save").onclick = () => {
-    const name = $("#fd-name").value.trim(), target = parseFloat($("#fd-target").value) || 0;
+    const name = $("#fd-name").value.trim(), target = readMoneyInput($("#fd-target"));
     if (!name) return toast(t("needName"));
     (f ? updateDoc(doc(wsRef("funds"), f.id), { name, target }) : addDoc(wsRef("funds"), { name, target, createdAt: serverTimestamp() })).catch((x) => toast(errMsg(x)));
     closeModal();
@@ -1054,11 +1370,12 @@ function openFund(id) {
   openModal(`<div class="sec-head"><h3>${esc(f.name)}</h3><span><button class="btn small" id="fu-edit" type="button">${t("edit")}</button> <button class="btn small danger" id="fu-del" type="button">${t("delete")}</button></span></div>
   <div class="muted">${t("balanceLine", { bal: fmt(bal), target: fmt(f.target) })}</div>
   <div class="seg" id="fu-type" style="margin-top:10px"><button type="button" data-t="deposit" class="on">${t("deposit")}</button><button type="button" data-t="withdraw">${t("withdraw")}</button></div>
-  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fu-amt" type="number" inputmode="decimal" placeholder="0.00"><input id="fu-date" type="date" value="${today()}">
+  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fu-amt" type="text" inputmode="numeric" autocomplete="off"><input id="fu-date" type="date" value="${today()}">
   <select id="fu-mem">${opts(memberList(), S.user.uid)}</select><input id="fu-rem" placeholder="${esc(t("optional"))}">
   <button class="btn primary block" id="fu-save" type="button">${t("confirm")}</button>
   <h3 style="margin-top:16px">${t("records")}</h3>${list.length ? list.map((txn) => `<div class="list-row"><span>${txn.type === "withdraw" ? t("withdraw") : t("deposit")} · ${esc(memberName(txn.memberUid))}<br><span class="muted">${esc(txn.date || "")} ${esc(txn.remark || "")}</span></span><span>${txn.type === "withdraw" ? "-" : "+"}${fmt(txn.amount)} <button class="del" type="button" data-tid="${txn.id}">${t("delete")}</button></span></div>`).join("") : `<div class="muted">${t("noRecords")}</div>`}
   <button class="btn block" id="fu-close" type="button">${t("close")}</button>`);
+  bindMoneyInput($("#fu-amt"), 0);
   let type = "deposit";
   $("#fu-type").querySelectorAll("button").forEach((b) => (b.onclick = () => { type = b.dataset.t; $("#fu-type").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
   $("#fu-close").onclick = closeModal;
@@ -1069,7 +1386,7 @@ function openFund(id) {
     b.commit().catch((x) => toast(errMsg(x))); closeModal();
   };
   $("#fu-save").onclick = () => {
-    const amount = Math.round(parseFloat($("#fu-amt").value) * 100) / 100;
+    const amount = readMoneyInput($("#fu-amt"));
     if (!(amount > 0)) return toast(t("needAmount"));
     addDoc(wsRef("funds", f.id, "txns"), { type, amount, date: $("#fu-date").value || today(), memberUid: $("#fu-mem").value, remark: $("#fu-rem").value.trim(), createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
     toast(t("recorded")); setTimeout(() => openFund(f.id), 150);
@@ -1078,30 +1395,86 @@ function openFund(id) {
 }
 
 /* ---------- Profile, icons, settings ---------- */
-function ensureEmojiPicker() {
-  if (customElements.get("emoji-picker")) return Promise.resolve();
-  if (!emojiReady) emojiReady = import("https://cdn.jsdelivr.net/npm/emoji-picker-element@" + EMOJI_VER + "/index.js");
-  return emojiReady;
+function loadEmojiData() {
+  const key = S.lang === "en" ? "en" : "zh";
+  if (!emojiCache[key]) {
+    emojiCache[key] = fetch("https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1/" + key + "/emojibase/data.json").then((r) => {
+      if (!r.ok) throw new Error("emoji");
+      return r.json();
+    }).catch((err) => { delete emojiCache[key]; throw err; });
+  }
+  return emojiCache[key];
 }
 async function openFullEmojiPicker(current, onPick, onCancel) {
-  try {
-    await ensureEmojiPicker();
-    const zh = S.lang !== "en";
-    if (zh && !emojiZh) emojiZh = import("https://cdn.jsdelivr.net/npm/emoji-picker-element@" + EMOJI_VER + "/i18n/zh_CN.js").then((m) => m.default);
-    const i18n = zh ? await emojiZh : null;
-    const src = "https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1/" + (zh ? "zh" : "en") + "/emojibase/data.json";
-    openModal(`<h3>${t("pickIcon")}</h3><emoji-picker class="${S.theme === "dark" ? "dark" : "light"}" locale="${zh ? "zh" : "en"}" data-source="${src}"></emoji-picker><button class="btn block" id="em-close" type="button">${t("cancel")}</button>`);
-    const picker = $("#sheet").querySelector("emoji-picker");
-    if (i18n && picker) picker.i18n = i18n;
-    if (picker) picker.addEventListener("emoji-click", (ev) => {
-      const emoji = ev.detail && (ev.detail.unicode || (ev.detail.emoji && ev.detail.emoji.unicode));
-      const safe = safeIcon(emoji);
-      if (!safe) return;
-      closeModal();
-      onPick(safe);
+  openModal(`<h3>${t("pickIcon")}</h3><div class="epick"><input id="emoji-q" type="search" placeholder="${esc(t("emojiSearch"))}" enterkeyhint="search"><div class="epick-tabs" id="emoji-tabs"></div><div class="epick-grid" id="emoji-grid"><p class="muted">${t("wait")}</p></div></div><button class="btn block" id="em-close" type="button">${t("cancel")}</button>`);
+  $("#em-close").onclick = () => { closeModal(); if (onCancel) onCancel(); };
+  let items = [];
+  let group = "all";
+  let query = "";
+  const drawTabs = () => {
+    $("#emoji-tabs").innerHTML = EMOJI_GROUPS.map(([id, key]) => `<button type="button" data-g="${id}" class="${(query && id === "all") || (!query && String(id) === String(group)) ? "on" : ""}">${esc(t(key))}</button>`).join("");
+    $("#emoji-tabs").querySelectorAll("button").forEach((b) => (b.onclick = () => { group = b.dataset.g === "all" ? "all" : Number(b.dataset.g); query = ""; const q = $("#emoji-q"); if (q) q.value = ""; draw(); }));
+  };
+  const draw = () => {
+    drawTabs();
+    const q = query.trim().toLowerCase();
+    const list = items.filter((it) => it.group !== 2 && (q || group === "all" || it.group === group) && (!q || ((it.annotation || "") + " " + (it.tags || []).join(" ") + " " + (it.shortcodes || []).join(" ") + " " + it.emoji).toLowerCase().includes(q)));
+    const grid = $("#emoji-grid");
+    if (!grid) return;
+    if (!list.length) { grid.innerHTML = `<p class="muted">${t("emojiEmpty")}</p>`; return; }
+    const frag = document.createDocumentFragment();
+    list.forEach((it) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = it.emoji;
+      btn.title = it.annotation || "";
+      btn.onclick = () => { const safe = safeIcon(it.emoji); if (!safe) return; closeModal(); onPick(safe); };
+      frag.appendChild(btn);
     });
-    $("#em-close").onclick = () => { closeModal(); if (onCancel) onCancel(); };
-  } catch (err) { toast(t("emojiFail")); if (onCancel) onCancel(); }
+    grid.replaceChildren(frag);
+  };
+  try {
+    items = await loadEmojiData();
+    if (!$("#emoji-grid")) return;
+    draw();
+    $("#emoji-q").oninput = () => { query = $("#emoji-q").value || ""; draw(); };
+  } catch (err) {
+    toast(t("emojiFail"));
+    if (onCancel) onCancel();
+  }
+}
+async function deleteWorkspaceFully(w) {
+  if (!w || !S.user || w.ownerUid !== S.user.uid) return;
+  const wsId = w.id;
+  const queue = [];
+  const addSnap = (snap) => snap.docs.forEach((d) => queue.push(d.ref));
+  try {
+    for (const name of ["categories", "cards", "expenses", "receipts", "settlements"]) addSnap(await getDocs(collection(db, "workspaces", wsId, name)));
+    const funds = await getDocs(collection(db, "workspaces", wsId, "funds"));
+    for (const f of funds.docs) {
+      addSnap(await getDocs(collection(db, "workspaces", wsId, "funds", f.id, "txns")));
+      queue.push(f.ref);
+    }
+  } catch (err) { toast(errMsg(err)); return; }
+  let batch = writeBatch(db), n = 0;
+  const commits = [];
+  const flush = () => { if (!n) return; commits.push(batch.commit().catch((err) => toast(errMsg(err)))); batch = writeBatch(db); n = 0; };
+  queue.forEach((ref) => { batch.delete(ref); n += 1; if (n >= 400) flush(); });
+  flush();
+  commits.push(deleteDoc(doc(db, "workspaces", wsId)).catch((err) => toast(errMsg(err))));
+  const rest = S.wsList.filter((x) => x.id !== wsId);
+  localStorage.removeItem("ws_" + S.user.uid);
+  if (rest[0]) switchWs(rest[0].id);
+  else { const id = createWorkspace(t("personalWs")); localStorage.setItem("ws_" + S.user.uid, id); switchWs(id); }
+  toast(t("wsDeleted"));
+}
+function openDeleteWorkspace(w) {
+  openModal(`<h3>${t("deleteWs")}</h3><p class="muted">${t("deleteWsWarn")}</p><label>${t("typeWsName", { name: esc(w.name) })}</label><input id="del-name" autocomplete="off">
+    <div class="btns"><button class="btn" id="del-cancel" type="button">${t("cancel")}</button><button class="btn danger" id="del-go" type="button" disabled>${t("deleteWs")}</button></div>`);
+  const sync = () => { $("#del-go").disabled = $("#del-name").value !== w.name; };
+  $("#del-name").oninput = sync;
+  $("#del-cancel").onclick = closeModal;
+  $("#del-go").onclick = () => { if ($("#del-name").value !== w.name) return; closeModal(); deleteWorkspaceFully(w); };
 }
 function openCatForm(cat, draft) {
   const icon = (draft && draft.icon) || safeIcon(cat && cat.icon) || "🏷️";
@@ -1192,7 +1565,8 @@ function renderSettings() {
       ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
       <div class="inline"><input id="s-inv" type="email" placeholder="${esc(t("invitePh"))}"><button class="btn primary" id="s-invite" type="button">${t("invite")}</button></div>
       <div class="muted">${t("inviteHint")}</div></div>`);
-    if (!isOwner) parts.push(`<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`);
+    if (isOwner) parts.push(`<button class="btn danger block" id="s-delete-ws" type="button">${t("deleteWs")}</button>`);
+    else parts.push(`<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`);
   }
   parts.push(`<button class="btn block" id="s-logout" type="button">${t("logout")}</button>`);
   el.innerHTML = parts.join("");
@@ -1234,6 +1608,7 @@ function renderSettings() {
     el.querySelectorAll("[data-unv]").forEach((a) => (a.onclick = () => updateDoc(wsRef(), { invitedEmails: arrayRemove(a.dataset.unv) }).catch((x) => toast(errMsg(x)))));
     el.querySelectorAll("[data-rm]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmRemove"))) updateDoc(wsRef(), { members: arrayRemove(a.dataset.rm), [`memberInfo.${a.dataset.rm}`]: deleteField() }).catch((x) => toast(errMsg(x))); }));
     if ($("#s-leave")) $("#s-leave").onclick = () => { if (confirm(t("confirmLeave"))) { const id = S.wsId; updateDoc(doc(db, "workspaces", id), { members: arrayRemove(S.user.uid) }).catch((x) => toast(errMsg(x))); localStorage.removeItem("ws_" + S.user.uid); switchWs(S.wsList.find((x) => x.id !== id)?.id); } };
+    if ($("#s-delete-ws")) $("#s-delete-ws").onclick = () => openDeleteWorkspace(w);
   }
   $("#s-logout").onclick = () => { if (confirm(t("confirmLogout"))) signOut(auth); };
 }
