@@ -6,9 +6,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function hasEmail() {
+      return request.auth.token.email is string && request.auth.token.email.size() > 0;
+    }
     function myEmail() { return request.auth.token.email.lower(); }
+    function wsPath(wsId) { return /databases/$(database)/documents/workspaces/$(wsId); }
+    // get() only sees data already saved. A brand-new workspace is invisible to get()
+    // in the same batch that creates it, so starter categories must also check getAfter().
     function isMemberOf(wsId) {
-      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/workspaces/$(wsId)).data.members;
+      return signedIn() && exists(wsPath(wsId)) && request.auth.uid in get(wsPath(wsId)).data.members;
+    }
+    function isMemberAfter(wsId) {
+      return signedIn() && existsAfter(wsPath(wsId)) && request.auth.uid in getAfter(wsPath(wsId)).data.members;
     }
     function validAvatar(a) {
       return a is string && (
@@ -36,8 +45,10 @@ service cloud.firestore {
     }
 
     match /workspaces/{wsId} {
-      allow read: if signedIn() && (request.auth.uid in resource.data.members
-                    || myEmail() in resource.data.invitedEmails);
+      // Two separate reads so a "my workspaces" query and an "invites for my email"
+      // query each match one rule. Email is only read when the account has one.
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow read: if signedIn() && hasEmail() && myEmail() in resource.data.invitedEmails;
 
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
@@ -47,7 +58,7 @@ service cloud.firestore {
         (request.auth.uid in resource.data.members
           && request.resource.data.ownerUid == resource.data.ownerUid)
         ||
-        (myEmail() in resource.data.invitedEmails
+        (hasEmail() && myEmail() in resource.data.invitedEmails
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberInfo', 'invitedEmails'])
           && request.resource.data.members.toSet().difference(resource.data.members.toSet()).hasOnly([request.auth.uid])
           && resource.data.members.toSet().difference(request.resource.data.members.toSet()).size() == 0
@@ -59,7 +70,8 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
       match /{sub=**} {
-        allow read, write: if isMemberOf(wsId);
+        allow read: if isMemberOf(wsId);
+        allow create, update, delete: if isMemberOf(wsId) || isMemberAfter(wsId);
       }
     }
   }
