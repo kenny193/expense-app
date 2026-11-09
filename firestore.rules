@@ -19,6 +19,15 @@ service cloud.firestore {
     function isMemberAfter(wsId) {
       return signedIn() && existsAfter(wsPath(wsId)) && request.auth.uid in getAfter(wsPath(wsId)).data.members;
     }
+    function addedMembers() {
+      return request.resource.data.members.toSet().difference(resource.data.members.toSet());
+    }
+    function removedMembers() {
+      return resource.data.members.toSet().difference(request.resource.data.members.toSet());
+    }
+    function memberInfoKeysChanged() {
+      return request.resource.data.get('memberInfo', {}).diff(resource.data.get('memberInfo', {})).affectedKeys();
+    }
     function validAvatar(a) {
       return a is string && (
         a == "" ||
@@ -54,9 +63,24 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.members == [request.auth.uid];
 
+      // Members can edit the workspace (name, currency, budget, invites…), but:
+      // - nobody can change the owner or add members directly (people join by accepting an invite);
+      // - the owner can remove other members, but not themself;
+      // - everyone else can only remove themself (leave), and only edit their own memberInfo.
       allow update: if signedIn() && (
         (request.auth.uid in resource.data.members
-          && request.resource.data.ownerUid == resource.data.ownerUid)
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.members is list
+          && addedMembers().size() == 0
+          && (
+            (request.auth.uid == resource.data.ownerUid
+              && request.auth.uid in request.resource.data.members
+              && memberInfoKeysChanged().difference(removedMembers()).hasOnly([request.auth.uid]))
+            ||
+            (request.auth.uid != resource.data.ownerUid
+              && removedMembers().hasOnly([request.auth.uid])
+              && memberInfoKeysChanged().hasOnly([request.auth.uid]))
+          ))
         ||
         (hasEmail() && myEmail() in resource.data.invitedEmails
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberInfo', 'invitedEmails'])
@@ -69,7 +93,10 @@ service cloud.firestore {
 
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
-      match /{sub=**} {
+      // Subcollections only. "{coll}/{rest=**}" needs at least one segment below the
+      // workspace. The old "{sub=**}" also matched the workspace document itself, so its
+      // isMemberAfter() check let anyone add themself as a member.
+      match /{coll}/{rest=**} {
         allow read: if isMemberOf(wsId);
         allow create, update, delete: if isMemberOf(wsId) || isMemberAfter(wsId);
       }

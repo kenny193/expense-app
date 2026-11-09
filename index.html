@@ -20,7 +20,9 @@ try {
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div id="boot" class="boot" aria-hidden="true">💰</div>
@@ -62,7 +64,12 @@ try {
     <div class="card hero">
       <div class="month-bar"><button id="m-prev" type="button">‹</button><span id="m-label"></span><button id="m-next" type="button">›</button></div>
       <div class="total"><span data-i18n="monthSpend">本月支出</span><b id="m-total">¥0.00</b><em id="m-code">CNY</em></div>
+      <div class="hero-stats">
+        <div><span data-i18n="monthIncome">收入</span><b id="m-income">¥0.00</b></div>
+        <div><span data-i18n="monthNet">结余</span><b id="m-net">¥0.00</b></div>
+      </div>
     </div>
+    <div id="budget-card" class="card budget-card hidden"></div>
     <div class="card">
       <div class="seg" id="chart-mode">
         <button type="button" data-m="cat" class="on" data-i18n="chartCat">分类</button>
@@ -83,6 +90,8 @@ try {
         <button id="filter-clear" type="button" class="btn small hidden" data-i18n="clearFilters">清除</button>
       </div>
       <div id="filters" class="filters hidden">
+        <label for="flt-type" data-i18n="typeLabel">收支</label>
+        <select id="flt-type"></select>
         <label for="flt-cat" data-i18n="category">分类</label>
         <select id="flt-cat"></select>
         <label for="flt-card" data-i18n="card">银行卡</label>
