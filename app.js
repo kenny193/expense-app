@@ -25,12 +25,12 @@ const CURRENCIES = [
   { code: "MXN", symbol: "MX$", space: false, zh: "墨西哥比索", en: "Mexican Peso" },
   { code: "BRL", symbol: "R$", space: true, zh: "巴西雷亚尔", en: "Brazilian Real" }
 ];
-const THEMES = ["fresh", "warm", "forest", "dark"];
+const THEMES = ["forest", "night"];
+// Older versions had fresh / warm / dark. Light ones become forest, dark becomes night.
+const normTheme = (th) => (th === "night" || th === "dark" ? "night" : "forest");
 const PALETTES = {
-  fresh: ["#10b981", "#3b82f6", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16", "#0ea5e9"],
-  warm: ["#fb7185", "#fb923c", "#f59e0b", "#e879f9", "#a78bfa", "#34d399", "#f97316", "#f43f5e", "#22d3ee", "#facc15", "#c084fc"],
   forest: ["#2d6a4f", "#b7791f", "#52b788", "#9c4221", "#40916c", "#c05621", "#74c69d", "#744210", "#1b4332", "#d69e2e", "#95d5b2"],
-  dark: ["#34d399", "#60a5fa", "#fbbf24", "#fb7185", "#a78bfa", "#f472b6", "#2dd4bf", "#fb923c", "#818cf8", "#a3e635", "#38bdf8"]
+  night: ["#74c69d", "#f4a261", "#95d5b2", "#e76f51", "#52b788", "#e9c46a", "#b7e4c7", "#f4845f", "#40916c", "#ffd166", "#d8f3dc"]
 };
 const DEFAULT_CATS = [
   { zh: "餐饮", en: "Food", icon: "🍜" },
@@ -63,7 +63,7 @@ const I18N_ROWS = [
   ["resetSent", "重置邮件已发送，请查看收件箱和垃圾箱", "Reset email sent. Check inbox and spam."],
   ["needEmail", "请先输入邮箱", "Enter your email first"],
   ["tabHome", "首页", "Home"],
-  ["tabFunds", "存款", "Savings"],
+  ["tabFunds", "基金", "Funds"],
   ["tabSettings", "设置", "Settings"],
   ["monthSpend", "本月支出", "Spent this month"],
   ["chartCat", "分类", "Category"],
@@ -71,12 +71,12 @@ const I18N_ROWS = [
   ["chartMember", "成员", "Member"],
   ["emptyChart", "这个月还没有支出", "No spending this month"],
   ["emptyMonth", "本月还没有记录，点下方中间的 ＋ 记一笔", "Nothing this month yet. Tap the ＋ below to add one."],
-  ["fundsTitle", "存款 · Tabung", "Savings · Tabung"],
-  ["emptyFunds", "还没有存款目标。点下方中间的 ＋，再选「存款」，就可以开一个和成员一起存钱的目标。", "No savings goals yet. Tap ＋ below, then Savings, to start one with your members."],
-  ["fundMenu", "存款", "Savings"],
+  ["fundsTitle", "基金 · Tabung", "Funds · Tabung"],
+  ["emptyFunds", "还没有基金。点下方中间的 ＋，再选「基金」，就可以开一个和成员一起存钱的基金。", "No funds yet. Tap ＋ below, then Funds, to start one with your members."],
+  ["fundMenu", "基金", "Funds"],
   ["addTxn", "记一笔存取", "Add a transaction"],
-  ["chooseFund", "选择目标", "Choose a goal"],
-  ["needFund", "请先新建一个存款目标", "Create a savings goal first"],
+  ["chooseFund", "选择基金", "Choose a fund"],
+  ["needFund", "请先新建一个基金", "Create a fund first"],
   ["searchRemark", "搜索备注", "Search notes"],
   ["filter", "筛选", "Filter"],
   ["clearFilters", "清除", "Clear"],
@@ -105,7 +105,7 @@ const I18N_ROWS = [
   ["emojiSearch", "搜索表情", "Search emojis"],
   ["emojiEmpty", "没有匹配的表情", "No matching emojis"],
   ["deleteWs", "删除账本", "Delete workspace"],
-  ["deleteWsWarn", "会删除这个账本里的全部分类、账户、账单、小票和存款，而且无法恢复。", "This deletes every category, card, expense, receipt, and savings goal in this workspace. It cannot be undone."],
+  ["deleteWsWarn", "会删除这个账本里的全部分类、账户、账单、小票、基金和旅行，而且无法恢复。", "This deletes every category, card, expense, receipt, fund, and trip in this workspace. It cannot be undone."],
   ["typeWsName", "输入 {name} 以确认", "Type {name} to confirm"],
   ["wsDeleted", "账本已删除", "Workspace deleted"],
   ["noWs", "无账本", "No workspace"],
@@ -113,9 +113,6 @@ const I18N_ROWS = [
   ["displayName", "昵称", "Display name"],
   ["language", "语言", "Language"],
   ["theme", "主题", "Theme"],
-  ["theme_fresh", "清新", "Fresh"],
-  ["theme_warm", "暖色", "Warm"],
-  ["theme_dark", "深色", "Dark"],
   ["currency", "货币", "Currency"],
   ["currencyHint", "这个账本里的金额都会按这个货币显示，所有成员看到的一样。", "Everyone in this workspace sees amounts in this currency."],
   ["wsName", "账本名称", "Workspace name"],
@@ -180,10 +177,10 @@ const I18N_ROWS = [
   ["switchWs", "切换账本", "Workspaces"],
   ["newWsPh", "新账本名称，如 旅行", "New workspace, e.g. Trip"],
   ["people", "{n} 人", "{n} people"],
-  ["editGoal", "编辑目标", "Edit goal"],
-  ["newGoal", "新建存款目标", "New savings goal"],
+  ["editGoal", "编辑基金", "Edit fund"],
+  ["newGoal", "新建基金", "New fund"],
   ["goalName", "名称", "Name"],
-  ["goalPh", "如 旅行基金", "e.g. Holiday fund"],
+  ["goalPh", "如 旅行基金、Tabung Raya", "e.g. Holiday fund"],
   ["goalAmount", "目标金额", "Target amount"],
   ["savedSoFar", "已存 {bal} / 目标 {target}", "Saved {bal} / goal {target}"],
   ["balanceLine", "余额 {bal} / 目标 {target}", "Balance {bal} / goal {target}"],
@@ -193,7 +190,7 @@ const I18N_ROWS = [
   ["noRecords", "暂无记录", "No records yet"],
   ["confirmDeleteExpense", "确定删除这笔记录？", "Delete this expense?"],
   ["confirmDelete", "确定删除？已有记录会显示为未分类或未指定。", "Delete it? Older records will show as uncategorized."],
-  ["confirmDeleteFund", "删除该目标及全部记录？", "Delete this goal and all of its records?"],
+  ["confirmDeleteFund", "删除这个基金及全部记录？", "Delete this fund and all of its records?"],
   ["confirmDeleteTxn", "删除这条记录？", "Delete this record?"],
   ["confirmLeave", "退出后将看不到此账本，确定吗？", "You'll lose access to this workspace. Leave?"],
   ["confirmLogout", "确定退出登录？", "Log out?"],
@@ -229,8 +226,8 @@ const I18N_ROWS = [
   ["nextMonth", "下个月", "Next month"],
   ["fanExpense", "消费", "Expense"],
   ["fanExpenseSub", "支出或收入", "Spending or income"],
-  ["fanFund", "存款", "Savings"],
-  ["fanFundSub", "Tabung 存入或新目标", "Tabung deposit or new goal"],
+  ["fanFund", "基金", "Funds"],
+  ["fanFundSub", "存入或新建基金", "Deposit or new fund"],
   ["theme_forest", "森林", "Forest"],
   ["catTrend", "分类变化", "Category changes"],
   ["catTrendHint", "最近 6 个月每个分类花了多少", "How much each category cost over the last 6 months"],
@@ -240,6 +237,58 @@ const I18N_ROWS = [
   ["monthlyShort", "每月", "Monthly"],
   ["monthlyOn", "每月 {day} 日", "Day {day} monthly"],
   ["dragHint", "按住 ⋮⋮ 拖动排序", "Drag ⋮⋮ to reorder"],
+  ["theme_night", "夜林", "Night forest"],
+  ["settings", "设置", "Settings"],
+  ["tabTrips", "出游", "Trips"],
+  ["tripsTitle", "出游分账", "Trip splits"],
+  ["tripsEmpty", "还没有旅行。和朋友出去玩时开一个旅行，记下每笔消费和公款，App 会帮你们 AA 算好谁该给谁。", "No trips yet. Start one when you travel with friends: log spending and the kitty, and the app works out who owes whom."],
+  ["newTrip", "新建旅行", "New trip"],
+  ["editTrip", "旅行设置", "Trip settings"],
+  ["tripName", "旅行名称", "Trip name"],
+  ["tripNamePh", "如 槟城三日游", "e.g. Penang weekend"],
+  ["tripPeople", "一起去的人", "Who's going"],
+  ["tripPeopleHint", "不需要注册，填名字就好。", "They don't need an account. Just names."],
+  ["personPh", "名字", "Name"],
+  ["addPerson", "添加一人", "Add person"],
+  ["needPeople", "至少要有一个人", "Add at least one person"],
+  ["personInUse", "「{name}」已经有记录，不能删除", "{name} has records and can't be removed"],
+  ["allTrips", "全部旅行", "All trips"],
+  ["tripTotal", "总消费", "Total spent"],
+  ["pool", "公款", "Kitty"],
+  ["poolBalance", "公款余额", "Kitty left"],
+  ["addTripExpense", "记消费", "Add expense"],
+  ["addPool", "存公款", "Add to kitty"],
+  ["tripExpense", "旅行消费", "Trip expense"],
+  ["poolIn", "存入公款", "Into the kitty"],
+  ["whatFor", "买了什么", "What for"],
+  ["whatForPh", "如 晚餐、车费、民宿", "e.g. Dinner, Grab, hotel"],
+  ["paidFrom", "谁付的", "Paid by"],
+  ["fromPool", "公款付", "From kitty"],
+  ["sharedBy", "AA 分给", "Split between"],
+  ["everyone", "全员", "Everyone"],
+  ["perHead", "每人 {amount}", "{amount} each"],
+  ["needAmong", "至少选一个人来分", "Choose at least one person"],
+  ["who", "谁", "Who"],
+  ["settleTitle", "结算", "Settle up"],
+  ["settleHint", "按下面转账，大家就两清了。", "Make these transfers and everyone is even."],
+  ["settleNone", "都结清了 🎉", "All settled 🎉"],
+  ["markPaid", "已付", "Paid"],
+  ["confirmMarkPaid", "确定 {from} 已经给 {to} {amount}？", "Mark {from} paid {to} {amount}?"],
+  ["settledItem", "结算", "Settlement"],
+  ["perPerson", "每个人", "Per person"],
+  ["shareCol", "应摊", "Share"],
+  ["paidCol", "已付出", "Put in"],
+  ["netCol", "差额", "Balance"],
+  ["tripItems", "明细", "Details"],
+  ["tripNoItems", "还没有记录。点上面的「记消费」开始。", "Nothing yet. Tap Add expense to start."],
+  ["confirmDeleteTrip", "删除这个旅行和全部记录？无法恢复。", "Delete this trip and all its records? This can't be undone."],
+  ["confirmDeleteItem", "删除这条记录？", "Delete this record?"],
+  ["tripDeleted", "旅行已删除", "Trip deleted"],
+  ["endTrip", "标记为已结束", "Mark as finished"],
+  ["reopenTrip", "重新开启", "Reopen"],
+  ["tripEnded", "已结束", "Finished"],
+  ["deleteTrip", "删除旅行", "Delete trip"],
+  ["tripIcon", "图标", "Icon"],
   ["typeLabel", "收支", "Type"],
   ["typeExpense", "支出", "Expense"],
   ["typeIncome", "收入", "Income"],
@@ -290,8 +339,8 @@ const ERR = {
 };
 
 function storedTheme() {
-  try { const th = localStorage.getItem("pref_theme"); if (THEMES.includes(th)) return th; } catch (e) {}
-  return "fresh";
+  try { const th = localStorage.getItem("pref_theme"); if (th) return normTheme(th); } catch (e) {}
+  return "forest";
 }
 function storedLang() {
   try { if (localStorage.getItem("pref_lang") === "en") return "en"; } catch (e) {}
@@ -308,13 +357,13 @@ const catKind = (c) => (c && c.kind === "income" ? "income" : "expense");
 const S = {
   user: null, profile: { name: "", avatar: "" }, profileReady: false, userDocExists: false,
   theme: storedTheme(), lang: storedLang(),
-  wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [],
+  wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null,
   month: new Date(), page: "home",
   repMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1), repMode: "cat", repCats: null, repCatsOpen: false,
   reportRows: [], reportKey: "", dragging: false,
   filters: emptyFilters(false)
 };
-let unsubWs = [], unsubData = [], unsubTxns = {}, chart = null;
+let unsubWs = [], unsubData = [], unsubTxns = {}, unsubTrips = {}, chart = null;
 let localProfileTouched = false, localThemeTouched = false, localLangTouched = false;
 let regMode = false, registerCreate = false, pendingName = "", creatingWs = false;
 const APP_URL = "https://kenny193.github.io/expense-app/";
@@ -331,7 +380,7 @@ const t = (key, vars) => {
 };
 const errMsg = (e) => (e && ERR[e.code] ? t(ERR[e.code]) : (e && e.message) || t("errGeneric"));
 const toast = (m) => { const el = $("#toast"); el.textContent = m; el.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.add("hidden"), 2200); };
-const palette = () => PALETTES[S.theme] || PALETTES.fresh;
+const palette = () => PALETTES[S.theme] || PALETTES.forest;
 const currencyOf = (w) => CURRENCIES.find((c) => c.code === w?.currency) || CURRENCIES[1];
 const money = (n) => {
   const v = (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
@@ -339,6 +388,7 @@ const money = (n) => {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.join(".");
 };
+const fmtCur = (n, code) => { const c = CURRENCIES.find((x) => x.code === code) || currencyOf(ws()); const neg = Number(n) < -0.004; const v = money(Math.abs(Number(n) || 0)); return (neg ? "-" : "") + (c.space ? c.symbol + " " + v : c.symbol + v); };
 const fmt = (n) => { const c = currencyOf(ws()); const neg = Number(n) < -0.004; const v = money(Math.abs(Number(n) || 0)); return (neg ? "-" : "") + (c.space ? c.symbol + " " + v : c.symbol + v); };
 const memberName = (uid) => { const i = ws()?.memberInfo?.[uid]; return (i && (i.name || i.email)) || t("unknownMember"); };
 const memberNameOf = (w, uid) => { const i = w?.memberInfo?.[uid]; return (i && (i.name || i.email)) || t("someone"); };
@@ -424,7 +474,7 @@ function chartBorder() {
   return getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#fff";
 }
 function setTheme(theme, persist) {
-  const next = THEMES.includes(theme) ? theme : "fresh";
+  const next = normTheme(theme);
   const changed = S.theme !== next;
   S.theme = next;
   document.documentElement.setAttribute("data-theme", S.theme);
@@ -432,7 +482,7 @@ function setTheme(theme, persist) {
   const c = getComputedStyle(document.documentElement).getPropertyValue("--theme-color").trim();
   if (meta && c) meta.setAttribute("content", c);
   const bar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-  if (bar) bar.setAttribute("content", S.theme === "dark" ? "black" : "default");
+  if (bar) bar.setAttribute("content", S.theme === "night" ? "black" : "default");
   updateThemeButtons();
   if (persist) {
     try { localStorage.setItem("pref_theme", S.theme); } catch (e) {}
@@ -539,7 +589,7 @@ function handleUserDoc(snap) {
       if (typeof d.avatar === "string") S.profile.avatar = safeAvatar(d.avatar);
       cacheProfile();
     }
-    if (!localThemeTouched && THEMES.includes(d.theme)) setTheme(d.theme, false);
+    if (!localThemeTouched && typeof d.theme === "string") setTheme(normTheme(d.theme), false);
     if (!localLangTouched && (d.lang === "zh" || d.lang === "en")) setLang(d.lang, false);
   } else if (!localProfileTouched) {
     adoptWorkspaceProfile();
@@ -660,7 +710,8 @@ function createWorkspace(name, u = S.user) {
 function clearData() {
   unsubData.forEach((f) => f()); unsubData = [];
   Object.values(unsubTxns).forEach((f) => f()); unsubTxns = {};
-  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], reportRows: [], reportKey: "", repCats: null });
+  Object.values(unsubTrips).forEach((f) => f()); unsubTrips = {};
+  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null, reportRows: [], reportKey: "", repCats: null });
 }
 function switchWs(id) {
   clearData(); S.wsId = id || null;
@@ -670,7 +721,7 @@ function switchWs(id) {
   lsSet("ws_" + S.user.uid, id);
   const byTime = (a, b) => (a.order ?? 99) - (b.order ?? 99) || (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
   const sub = (name, key, after) => unsubData.push(onSnapshot(wsRef(name), (s) => { S[key] = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byTime); after && after(s); renderAll(); }, (e) => toast(errMsg(e))));
-  sub("categories", "cats", refreshOpenCatSelects); sub("cards", "cards"); sub("funds", "funds", syncTxns);
+  sub("categories", "cats", refreshOpenCatSelects); sub("cards", "cards"); sub("funds", "funds", syncTxns); sub("trips", "trips", syncTrips);
   sub("recurring", "recurring", (snap) => { if (!snap.metadata.fromCache) runRecurring(); });
   unsubData.push(() => { if (S.expUnsub) { S.expUnsub(); S.expUnsub = null; } if (S.reportUnsub) { S.reportUnsub(); S.reportUnsub = null; } S.reportKey = ""; });
   subReport();
@@ -680,6 +731,13 @@ function subExpenses() {
   if (S.expUnsub) S.expUnsub();
   const { start, end } = monthRange(S.month);
   S.expUnsub = onSnapshot(query(wsRef("expenses"), where("date", ">=", start), where("date", "<=", end)), (s) => { S.expenses = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, (e) => toast(errMsg(e)));
+}
+// Items of every trip, so the list can show totals. Trips are few, so this stays small.
+function syncTrips() {
+  const ids = S.trips.map((x) => x.id);
+  Object.keys(unsubTrips).forEach((id) => { if (!ids.includes(id)) { unsubTrips[id](); delete unsubTrips[id]; delete S.tripItems[id]; } });
+  ids.forEach((id) => { if (!unsubTrips[id]) unsubTrips[id] = onSnapshot(wsRef("trips", id, "items"), (s) => { S.tripItems[id] = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (S.page === "trips") renderTrips(); }, (e) => toast(errMsg(e))); });
+  if (S.tripId && !ids.includes(S.tripId)) S.tripId = null;
 }
 function syncTxns() {
   const ids = S.funds.map((f) => f.id);
@@ -810,20 +868,25 @@ function openRecurringForm(r) {
 function showPage(p) {
   S.page = p;
   document.querySelectorAll(".tabs [data-p]").forEach((x) => x.classList.toggle("on", x.dataset.p === p));
-  ["home", "funds", "report", "settings"].forEach((id) => $("#page-" + id).classList.toggle("hidden", id !== p));
+  ["home", "funds", "report", "trips", "settings"].forEach((id) => $("#page-" + id).classList.toggle("hidden", id !== p));
+  $("#set-btn").classList.toggle("on", p === "settings");
   moveSpot(true);
   window.scrollTo(0, 0); renderAll();
 }
 // Spotlight: a beam of light that slides to the tab you tapped.
 function moveSpot(flash) {
   const spot = $("#tab-spot"), on = document.querySelector(".tabs [data-p].on"), bar = $("#tabs");
-  if (!spot || !on || !bar) return;
+  if (!spot || !bar) return;
+  spot.classList.toggle("off", !on);
+  if (!on) return;
   const x = on.offsetLeft + on.offsetWidth / 2 - spot.offsetWidth / 2;
   spot.style.transform = `translateX(${x}px)`;
   if (flash) { on.classList.remove("lit"); void on.offsetWidth; on.classList.add("lit"); }
 }
 window.addEventListener("resize", () => moveSpot(false));
-document.querySelectorAll(".tabs [data-p]").forEach((b) => (b.onclick = () => showPage(b.dataset.p)));
+// While the + menu is open, the other tabs are locked until it is closed with ×.
+document.querySelectorAll(".tabs [data-p]").forEach((b) => (b.onclick = () => { if (!document.body.classList.contains("fan-open")) showPage(b.dataset.p); }));
+$("#set-btn").onclick = () => showPage("settings");
 function setFan(open) {
   document.body.classList.toggle("fan-open", open);
   $("#fab").setAttribute("aria-expanded", open ? "true" : "false");
@@ -881,6 +944,7 @@ function renderAll() {
   if (S.page === "home") renderHome();
   if (S.page === "funds") renderFunds();
   if (S.page === "report") { subReport(); renderReport(); }
+  if (S.page === "trips") renderTrips();
   if (S.page === "settings") renderSettings();
 }
 function readFilters() {
@@ -1662,6 +1726,270 @@ function openFund(id) {
   $("#sheet").querySelectorAll("[data-tid]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmDeleteTxn"))) { deleteDoc(doc(wsRef("funds", f.id, "txns"), a.dataset.tid)).catch((x) => toast(errMsg(x))); setTimeout(() => openFund(f.id), 150); } }));
 }
 
+/* ---------- Trips (AA split with friends) ----------
+   trips/{id}: { name, icon, currency, people: [{ id, name }], done }
+   trips/{id}/items/{id}:
+     { kind: "exp",    title, amount, date, payer: personId | "pool", among: [personId] }
+     { kind: "pool",   person, amount, date, note }      money put into the kitty
+     { kind: "settle", from, to, amount, date }          a payback, from/to may be "pool"
+   Balances: positive = others owe this party; negative = they owe. The kitty is a party
+   too, so money left in the kitty is shown as refunds back to people. */
+const POOL = "pool";
+const TRIP_ICONS = ["✈️", "🏝️", "🏔️", "🚗", "🏕️", "🚆", "🗺️", "🍜", "🎢", "🛳️", "🏨", "🎒"];
+const tripOf = (id) => S.trips.find((x) => x.id === id);
+const tripName = (tr, pid) => (pid === POOL ? t("pool") : (tr.people || []).find((p) => p.id === pid)?.name || t("unknownMember"));
+// Equal AA split in cents; leftover cents go to the first people so the total always matches.
+function shareCents(cents, ids) {
+  const n = ids.length, base = Math.floor(cents / n);
+  let left = cents - base * n;
+  const out = {};
+  ids.forEach((id) => { out[id] = base + (left > 0 ? 1 : 0); if (left > 0) left--; });
+  return out;
+}
+function tripStats(tr) {
+  const items = S.tripItems[tr.id] || [];
+  const ids = (tr.people || []).map((p) => p.id);
+  const per = {};
+  [...ids, POOL].forEach((id) => { per[id] = { share: 0, put: 0, net: 0 }; });
+  const add = (id, k, cents) => { if (!per[id]) per[id] = { share: 0, put: 0, net: 0 }; per[id][k] += cents; };
+  let spent = 0, poolIn = 0, poolOut = 0;
+  items.forEach((it) => {
+    const c = Math.round((Number(it.amount) || 0) * 100);
+    if (!(c > 0)) return;
+    if (it.kind === "exp") {
+      spent += c;
+      const among = (it.among || []).filter((id) => ids.includes(id));
+      const sh = shareCents(c, among.length ? among : ids);
+      Object.entries(sh).forEach(([id, v]) => { add(id, "share", v); add(id, "net", -v); });
+      add(it.payer || POOL, "net", c);
+      if (it.payer === POOL) poolOut += c; else add(it.payer, "put", c);
+    } else if (it.kind === "pool") {
+      poolIn += c; add(it.person, "put", c); add(it.person, "net", c); add(POOL, "net", -c);
+    } else if (it.kind === "settle") {
+      add(it.from, "net", c); add(it.to, "net", -c);
+    }
+  });
+  // Fewest transfers: biggest debtor pays biggest creditor, repeat.
+  const cred = [], debt = [];
+  Object.entries(per).forEach(([id, v]) => { if (v.net > 0) cred.push({ id, v: v.net }); else if (v.net < 0) debt.push({ id, v: -v.net }); });
+  cred.sort((a, b) => b.v - a.v); debt.sort((a, b) => b.v - a.v);
+  const moves = [];
+  let i = 0, j = 0;
+  while (i < debt.length && j < cred.length) {
+    const pay = Math.min(debt[i].v, cred[j].v);
+    if (pay > 0) moves.push({ from: debt[i].id, to: cred[j].id, cents: pay });
+    debt[i].v -= pay; cred[j].v -= pay;
+    if (!debt[i].v) i++;
+    if (!cred[j].v) j++;
+  }
+  return { items, per, spent, pool: poolIn - poolOut, poolIn, moves };
+}
+function renderTrips() {
+  const box = $("#trips");
+  if (!box) return;
+  if (!S.wsId) { box.innerHTML = `<div class="empty">${t("needWs")}</div>`; return; }
+  const tr = S.tripId && tripOf(S.tripId);
+  if (!tr) { renderTripList(box); return; } // a just-created trip may not have arrived yet
+  renderTripDetail(box, tr);
+}
+function renderTripList(box) {
+  const list = [...S.trips].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  box.innerHTML = `<div class="sec-head"><h2>${t("tripsTitle")}</h2>${list.length ? `<button class="btn small primary" id="tp-new" type="button">＋ ${t("newTrip")}</button>` : ""}</div>`
+    + (list.length ? list.map((tr) => {
+      const st = tripStats(tr);
+      const ppl = (tr.people || []).slice(0, 6).map((p) => `<span class="av xs letter">${esc(firstChar(p.name))}</span>`).join("");
+      return `<div class="card trip-card${tr.done ? " done" : ""}" data-trip="${esc(tr.id)}"><div class="trip-ic">${esc(safeIcon(tr.icon) || "✈️")}</div><div class="grow"><div class="trip-name"><b>${esc(tr.name)}</b>${tr.done ? `<span class="pill">${t("tripEnded")}</span>` : ""}</div><div class="trip-ppl">${ppl}<span class="muted">${t("people", { n: (tr.people || []).length })}</span></div></div><div class="trip-sum"><small class="muted">${t("tripTotal")}</small><b>${fmtCur(st.spent / 100, tr.currency)}</b>${st.poolIn ? `<small class="muted">${t("pool")} ${fmtCur(st.pool / 100, tr.currency)}</small>` : ""}</div></div>`;
+    }).join("") : `<div class="card trip-empty"><div class="trip-hero-ic">🧳</div><p class="muted">${t("tripsEmpty")}</p><button class="btn primary" id="tp-new" type="button">＋ ${t("newTrip")}</button></div>`);
+  $("#tp-new").onclick = () => openTripForm(null);
+  box.querySelectorAll("[data-trip]").forEach((el) => (el.onclick = () => { S.tripId = el.dataset.trip; window.scrollTo(0, 0); renderTrips(); }));
+}
+function tripItemLine(tr, it) {
+  const f = (n) => fmtCur(n, tr.currency);
+  const people = tr.people || [];
+  if (it.kind === "exp") {
+    const among = (it.among || []).filter((id) => people.some((p) => p.id === id));
+    const n = among.length || people.length;
+    const who = !among.length || among.length === people.length ? t("everyone") : among.map((id) => esc(tripName(tr, id))).join("、");
+    return { ic: "🧾", title: it.title || t("tripExpense"), sub: `${it.payer === POOL ? "🫙 " + t("fromPool") : esc(tripName(tr, it.payer))} · ${who} · ${t("perHead", { amount: f(it.amount / Math.max(1, n)) })}`, amt: `-${f(it.amount)}`, cls: "" };
+  }
+  if (it.kind === "pool") return { ic: "🫙", title: t("poolIn"), sub: esc(tripName(tr, it.person)) + (it.note ? " · " + esc(it.note) : ""), amt: `+${f(it.amount)}`, cls: " in" };
+  return { ic: "🤝", title: t("settledItem"), sub: `${esc(tripName(tr, it.from))} → ${esc(tripName(tr, it.to))}`, amt: f(it.amount), cls: " flat" };
+}
+function renderTripDetail(box, tr) {
+  const st = tripStats(tr), f = (c) => fmtCur(c / 100, tr.currency);
+  const people = tr.people || [];
+  const moves = st.moves.length
+    ? `<p class="muted">${t("settleHint")}</p>` + st.moves.map((m) => `<div class="list-row"><span class="grow mv"><b>${esc(tripName(tr, m.from))}</b> <span class="arrow">→</span> <b>${esc(tripName(tr, m.to))}</b></span><b class="mv-amt">${f(m.cents)}</b><button class="btn small" type="button" data-pay="${esc(m.from)}|${esc(m.to)}|${m.cents}">${t("markPaid")}</button></div>`).join("")
+    : `<p class="muted">${st.items.length ? t("settleNone") : t("tripNoItems")}</p>`;
+  const rows = people.map((p) => {
+    const v = st.per[p.id] || { share: 0, put: 0, net: 0 };
+    return `<div class="pp-row"><span class="pp-name"><span class="av xs letter">${esc(firstChar(p.name))}</span><span>${esc(p.name)}</span></span><span>${f(v.share)}</span><span>${f(v.put)}</span><b class="${v.net > 0 ? "pos" : v.net < 0 ? "neg" : ""}">${v.net > 0 ? "+" : ""}${f(v.net)}</b></div>`;
+  }).join("");
+  const byDay = {};
+  [...st.items].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).forEach((it) => (byDay[it.date || ""] = byDay[it.date || ""] || []).push(it));
+  const list = Object.keys(byDay).map((d) => `<div class="day-h"><span>${d ? dayLabel(d) : ""}</span></div><div class="card list-card">` + byDay[d].map((it) => {
+    const l = tripItemLine(tr, it);
+    return `<div class="item" data-item="${esc(it.id)}"><div class="ic emo">${l.ic}</div><div class="mid"><div class="ttl">${esc(l.title)}</div><div class="sub"><span class="txt">${l.sub}</span></div></div><div class="amt${l.cls}">${l.amt}</div></div>`;
+  }).join("") + `</div>`).join("");
+  box.innerHTML = `<div class="trip-top"><button class="btn small" id="tp-back" type="button">‹ ${t("allTrips")}</button><button class="btn small" id="tp-edit" type="button">✏️ ${t("edit")}</button></div>
+    <div class="card hero trip-hero"><div class="trip-title">${esc(safeIcon(tr.icon) || "✈️")} ${esc(tr.name)}${tr.done ? ` <span class="pill">${t("tripEnded")}</span>` : ""}</div>
+      <div class="total"><span>${t("tripTotal")}</span><b>${f(st.spent)}</b><em>${esc(tr.currency || currencyOf(ws()).code)}</em></div>
+      <div class="hero-stats"><div><span>${t("poolBalance")}</span><b>${f(st.pool)}</b></div><div><span>${t("tripPeople")}</span><b>${people.length}</b></div></div></div>
+    <div class="trip-actions"><button class="btn primary" id="tp-exp" type="button">🧾 ${t("addTripExpense")}</button><button class="btn" id="tp-pool" type="button">🫙 ${t("addPool")}</button></div>
+    <div class="card"><b class="sec-title">🤝 ${t("settleTitle")}</b>${moves}</div>
+    <div class="card"><b class="sec-title">${t("perPerson")}</b><div class="pp-row head"><span></span><span>${t("shareCol")}</span><span>${t("paidCol")}</span><span>${t("netCol")}</span></div>${rows}</div>
+    <b class="sec-title list-title">${t("tripItems")}</b>${list || `<div class="empty">${t("tripNoItems")}</div>`}`;
+  $("#tp-back").onclick = () => { S.tripId = null; renderTrips(); };
+  $("#tp-edit").onclick = () => openTripForm(tr);
+  $("#tp-exp").onclick = () => openTripExpense(tr, null);
+  $("#tp-pool").onclick = () => openTripPool(tr, null);
+  box.querySelectorAll("[data-pay]").forEach((b) => (b.onclick = () => {
+    const [from, to, cents] = b.dataset.pay.split("|");
+    if (!confirm(t("confirmMarkPaid", { from: tripName(tr, from), to: tripName(tr, to), amount: f(Number(cents)) }))) return;
+    addDoc(wsRef("trips", tr.id, "items"), { kind: "settle", from, to, amount: Number(cents) / 100, date: today(), createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+  }));
+  box.querySelectorAll("[data-item]").forEach((el) => (el.onclick = () => {
+    const it = st.items.find((x) => x.id === el.dataset.item);
+    if (!it) return;
+    if (it.kind === "exp") openTripExpense(tr, it);
+    else if (it.kind === "pool") openTripPool(tr, it);
+    else if (confirm(t("confirmDeleteItem"))) deleteDoc(doc(wsRef("trips", tr.id, "items"), it.id)).catch((x) => toast(errMsg(x)));
+  }));
+}
+const newPid = () => "p" + Math.random().toString(36).slice(2, 9);
+function openTripForm(tr) {
+  if (!S.wsId) return toast(t("needWs"));
+  let icon = safeIcon(tr?.icon) || "✈️";
+  let people = tr ? (tr.people || []).map((p) => ({ ...p })) : [{ id: newPid(), name: S.profile.name || fallbackName() }, { id: newPid(), name: "" }];
+  const used = new Set();
+  if (tr) (S.tripItems[tr.id] || []).forEach((it) => [it.payer, it.person, it.from, it.to, ...(it.among || [])].forEach((x) => x && used.add(x)));
+  openModal(`<h3>${tr ? t("editTrip") : t("newTrip")}</h3>
+    <label>${t("tripName")}</label><input id="tf-name" maxlength="40" value="${esc(tr?.name || "")}" placeholder="${esc(t("tripNamePh"))}">
+    <label>${t("tripIcon")}</label><div class="icon-row" id="tf-icons">${TRIP_ICONS.map((e) => `<button type="button" class="emoji-btn sm${e === icon ? " on" : ""}" data-ic="${e}">${e}</button>`).join("")}</div>
+    <label>${t("currency")}</label><select id="tf-cur">${currencyOptions(tr?.currency || currencyOf(ws()).code)}</select>
+    <label>${t("tripPeople")}</label><p class="muted">${t("tripPeopleHint")}</p><div id="tf-people"></div>
+    <button class="btn block" id="tf-add" type="button">＋ ${t("addPerson")}</button>
+    ${tr ? `<div class="btns"><button class="btn" id="tf-done" type="button">${tr.done ? t("reopenTrip") : t("endTrip")}</button><button class="btn danger" id="tf-del" type="button">${t("deleteTrip")}</button></div>` : ""}
+    <div class="btns"><button class="btn" id="tf-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="tf-save" type="button">${t("save")}</button></div>`);
+  const readNames = () => $("#tf-people").querySelectorAll("input").forEach((x) => { const p = people.find((q) => q.id === x.dataset.pid); if (p) p.name = x.value; });
+  const paint = () => {
+    $("#tf-people").innerHTML = people.map((p, i) => `<div class="inline person-row"><span class="av xs letter">${esc(firstChar(p.name || String(i + 1)))}</span><input data-pid="${esc(p.id)}" maxlength="30" value="${esc(p.name)}" placeholder="${esc(t("personPh"))} ${i + 1}"><button class="del" type="button" data-rmp="${esc(p.id)}" aria-label="${esc(t("remove"))}">✕</button></div>`).join("");
+    $("#tf-people").querySelectorAll("[data-rmp]").forEach((b) => (b.onclick = () => {
+      readNames();
+      const p = people.find((q) => q.id === b.dataset.rmp);
+      if (used.has(b.dataset.rmp)) return toast(t("personInUse", { name: p?.name || "" }));
+      people = people.filter((q) => q.id !== b.dataset.rmp); paint();
+    }));
+  };
+  paint();
+  $("#tf-icons").querySelectorAll("[data-ic]").forEach((b) => (b.onclick = () => { icon = b.dataset.ic; $("#tf-icons").querySelectorAll("[data-ic]").forEach((x) => x.classList.toggle("on", x === b)); }));
+  $("#tf-add").onclick = () => { readNames(); people.push({ id: newPid(), name: "" }); paint(); const ins = $("#tf-people").querySelectorAll("input"); ins[ins.length - 1].focus(); };
+  $("#tf-cancel").onclick = closeModal;
+  $("#tf-save").onclick = () => {
+    readNames();
+    const name = $("#tf-name").value.trim();
+    if (!name) return toast(t("needName"));
+    const clean = people.map((p) => ({ id: p.id, name: p.name.trim().slice(0, 30) })).filter((p) => p.name || used.has(p.id));
+    clean.forEach((p, i) => { if (!p.name) p.name = t("personPh") + " " + (i + 1); });
+    if (!clean.length) return toast(t("needPeople"));
+    const data = { name, icon, currency: $("#tf-cur").value, people: clean };
+    if (tr) updateDoc(doc(wsRef("trips"), tr.id), data).catch((x) => toast(errMsg(x)));
+    else {
+      const ref = doc(wsRef("trips"));
+      setDoc(ref, { ...data, done: false, createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+      S.tripId = ref.id;
+    }
+    closeModal(); toast(t("saved")); renderTrips();
+  };
+  if (tr) {
+    $("#tf-done").onclick = () => { updateDoc(doc(wsRef("trips"), tr.id), { done: !tr.done }).catch((x) => toast(errMsg(x))); closeModal(); };
+    $("#tf-del").onclick = async () => {
+      if (!confirm(t("confirmDeleteTrip"))) return;
+      closeModal(); S.tripId = null;
+      try {
+        const b = writeBatch(db);
+        (await getDocs(wsRef("trips", tr.id, "items"))).docs.forEach((d) => b.delete(d.ref));
+        b.delete(doc(wsRef("trips"), tr.id));
+        await b.commit();
+        toast(t("tripDeleted"));
+      } catch (x) { toast(errMsg(x)); }
+    };
+  }
+}
+// Shared one-screen calculator form for trip expenses and kitty money.
+function tripCalcForm(tr, it, title, fieldsHtml, onReady, onSave) {
+  const cur = CURRENCIES.find((c) => c.code === tr.currency) || currencyOf(ws());
+  const calc = calcNew(it ? it.amount : 0);
+  openModal(`<div class="xf">
+    <div class="xf-head"><button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">✕</button><b class="xf-title">${esc(title)}</b>${it ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">🗑</button>` : `<span class="icon-btn ghost"></span>`}</div>
+    <div class="xf-amt" id="f-amt-box"><span class="xf-sym">${esc(cur.symbol)}</span><div class="xf-nums"><div class="xf-expr" id="f-expr"></div><div class="xf-val" id="f-val">0.00</div></div></div>
+    ${fieldsHtml}
+    ${calcHtml()}
+  </div>`, "sheet-fit");
+  const hooks = {};
+  const paint = () => {
+    const v = calcValue(calc), hasOp = calc.toks.some((tk) => !tk.n);
+    $("#f-expr").textContent = hasOp ? calcText(calc) : "";
+    $("#f-val").textContent = isNaN(v) ? "—" : moneyDigits(Math.round(Math.max(0, v) * 100));
+    document.querySelector('.ck[data-k="="]').classList.toggle("live", hasOp);
+    if (hooks.onAmount) hooks.onAmount(isNaN(v) ? 0 : Math.max(0, v));
+  };
+  const save = () => { const v = calcValue(calc); if (!(v > 0)) return toast(t("needAmount")); onSave(v); };
+  calcKeys = (k) => { if (k === "save") return save(); calcPress(calc, k); paint(); };
+  $("#sheet").querySelectorAll(".calc [data-k]").forEach((b) => (b.onclick = () => calcKeys(b.dataset.k)));
+  $("#f-save").onclick = save;
+  $("#f-cancel").onclick = closeModal;
+  if (it) $("#f-del").onclick = () => { if (!confirm(t("confirmDeleteItem"))) return; deleteDoc(doc(wsRef("trips", tr.id, "items"), it.id)).catch((x) => toast(errMsg(x))); closeModal(); };
+  onReady(hooks);
+  paint();
+}
+function tripPeopleOpts(tr, sel, withPool) {
+  return (tr.people || []).map((p) => `<option value="${esc(p.id)}"${p.id === sel ? " selected" : ""}>${esc(p.name)}</option>`).join("") + (withPool ? `<option value="${POOL}"${sel === POOL ? " selected" : ""}>🫙 ${esc(t("fromPool"))}</option>` : "");
+}
+function openTripExpense(tr, it) {
+  const people = tr.people || [];
+  let among = new Set(it ? (it.among || []).filter((id) => people.some((p) => p.id === id)) : people.map((p) => p.id));
+  if (!among.size) among = new Set(people.map((p) => p.id));
+  const fields = `<div class="xf-grid">
+      <label class="xf-field xf-wide"><span>${t("whatFor")}</span><input id="te-title" maxlength="60" value="${esc(it?.title || "")}" placeholder="${esc(t("whatForPh"))}"></label>
+      <label class="xf-field"><span>${t("date")}</span><input id="te-date" type="date" value="${it?.date || today()}"></label>
+      <label class="xf-field"><span>${t("paidFrom")}</span><select id="te-payer">${tripPeopleOpts(tr, it?.payer || people[0]?.id, true)}</select></label>
+    </div>
+    <div class="xf-split"><div class="sec-head"><span class="xf-lbl">${t("sharedBy")}</span><small class="muted" id="te-each"></small></div><div class="chips tight" id="te-among"></div></div>`;
+  tripCalcForm(tr, it, t("tripExpense"), fields, (hooks) => {
+    let amount = it ? Number(it.amount) || 0 : 0;
+    const paintAmong = () => {
+      const all = people.length && people.every((p) => among.has(p.id));
+      $("#te-among").innerHTML = `<button type="button" class="chip${all ? " on" : ""}" data-every="1">${t("everyone")}</button>` + people.map((p) => `<button type="button" class="chip${among.has(p.id) ? " on" : ""}" data-pp="${esc(p.id)}">${esc(p.name)}</button>`).join("");
+      $("#te-among").querySelector("[data-every]").onclick = () => { among = all ? new Set() : new Set(people.map((p) => p.id)); paintAmong(); };
+      $("#te-among").querySelectorAll("[data-pp]").forEach((b) => (b.onclick = () => { const id = b.dataset.pp; if (among.has(id)) among.delete(id); else among.add(id); paintAmong(); }));
+      $("#te-each").textContent = among.size && amount > 0 ? t("perHead", { amount: fmtCur(amount / among.size, tr.currency) }) : "";
+    };
+    hooks.onAmount = (v) => { amount = v; paintAmong(); };
+    paintAmong();
+  }, (amount) => {
+    if (!among.size) return toast(t("needAmong"));
+    const data = { kind: "exp", title: $("#te-title").value.trim(), amount, date: validYmd($("#te-date").value) ? $("#te-date").value : today(), payer: $("#te-payer").value, among: people.filter((p) => among.has(p.id)).map((p) => p.id) };
+    if (it) updateDoc(doc(wsRef("trips", tr.id, "items"), it.id), data).catch((x) => toast(errMsg(x)));
+    else addDoc(wsRef("trips", tr.id, "items"), { ...data, createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+    closeModal(); toast(t("saved"));
+  });
+}
+function openTripPool(tr, it) {
+  const people = tr.people || [];
+  const fields = `<div class="xf-grid">
+      <label class="xf-field"><span>${t("who")}</span><select id="tk-person">${tripPeopleOpts(tr, it?.person || people[0]?.id, false)}</select></label>
+      <label class="xf-field"><span>${t("date")}</span><input id="tk-date" type="date" value="${it?.date || today()}"></label>
+      <label class="xf-field xf-wide"><span>${t("remark")}</span><input id="tk-note" maxlength="60" value="${esc(it?.note || "")}" placeholder="${esc(t("optional"))}"></label>
+    </div>`;
+  tripCalcForm(tr, it, t("poolIn"), fields, () => { $("#f-amt-box").classList.add("in"); }, (amount) => {
+    const data = { kind: "pool", person: $("#tk-person").value, amount, date: validYmd($("#tk-date").value) ? $("#tk-date").value : today(), note: $("#tk-note").value.trim() };
+    if (it) updateDoc(doc(wsRef("trips", tr.id, "items"), it.id), data).catch((x) => toast(errMsg(x)));
+    else addDoc(wsRef("trips", tr.id, "items"), { ...data, createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+    closeModal(); toast(t("saved"));
+  });
+}
+
 /* ---------- Profile, icons, settings ---------- */
 function loadEmojiData() {
   const key = S.lang === "en" ? "en" : "zh";
@@ -1718,6 +2046,11 @@ async function deleteWorkspaceFully(w) {
   const addSnap = (snap) => snap.docs.forEach((d) => queue.push(d.ref));
   try {
     for (const name of ["categories", "cards", "expenses", "receipts", "settlements"]) addSnap(await getDocs(collection(db, "workspaces", wsId, name)));
+    const trips = await getDocs(collection(db, "workspaces", wsId, "trips"));
+    for (const tr of trips.docs) {
+      addSnap(await getDocs(collection(db, "workspaces", wsId, "trips", tr.id, "items")));
+      queue.push(tr.ref);
+    }
     const funds = await getDocs(collection(db, "workspaces", wsId, "funds"));
     for (const f of funds.docs) {
       addSnap(await getDocs(collection(db, "workspaces", wsId, "funds", f.id, "txns")));
