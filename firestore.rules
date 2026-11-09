@@ -48,7 +48,7 @@ service cloud.firestore {
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 40
         && validAvatar(request.resource.data.avatar)
-        && request.resource.data.theme in ['fresh', 'warm', 'dark']
+        && request.resource.data.theme in ['fresh', 'warm', 'forest', 'dark']
         && request.resource.data.lang in ['zh', 'en'];
       allow delete: if false;
     }
