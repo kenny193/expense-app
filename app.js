@@ -289,6 +289,16 @@ const I18N_ROWS = [
   ["tripEnded", "已结束", "Finished"],
   ["deleteTrip", "删除旅行", "Delete trip"],
   ["tripIcon", "图标", "Icon"],
+  ["appearance", "外观", "Appearance"],
+  ["prefsKept", "主题和语言会记在这台手机和你的账号里，下次打开还是一样。", "Theme and language are kept on this phone and in your account, so they stay the same next time."],
+  ["wsSettings", "账本设置", "Workspace"],
+  ["noBudget", "未设预算", "No budget"],
+  ["countN", "{n} 个", "{n}"],
+  ["account", "账号", "Account"],
+  ["accountSumOwner", "删除账本 · 退出登录", "Delete workspace · Log out"],
+  ["accountSumMember", "退出账本 · 退出登录", "Leave workspace · Log out"],
+  ["repAllMembers", "全部成员", "Everyone"],
+  ["repMemberOnly", "只看 {name}", "Only {name}"],
   ["typeLabel", "收支", "Type"],
   ["typeExpense", "支出", "Expense"],
   ["typeIncome", "收入", "Income"],
@@ -359,7 +369,7 @@ const S = {
   theme: storedTheme(), lang: storedLang(),
   wsList: [], invites: [], wsId: null, cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null,
   month: new Date(), page: "home",
-  repMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1), repMode: "cat", repCats: null, repCatsOpen: false,
+  repMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1), repMode: lsGet("pref_repmode") || "cat", repCats: null, repMember: "", repCatsOpen: false,
   reportRows: [], reportKey: "", dragging: false,
   filters: emptyFilters(false)
 };
@@ -502,16 +512,38 @@ function setLang(lang, persist) {
   applyI18n();
   if (changed || persist) renderAll();
 }
+/* ---------- Remembering your settings ----------
+   Theme, language, name and avatar live in this phone (localStorage) and in users/{uid}.
+   "Synced" remembers what the server held the last time the two agreed. On open:
+   - server still equals that → the change made on this phone is newer, keep it and upload;
+   - server differs from it   → another phone changed it, take the server's value. */
+const syncKey = () => "pref_sync_" + (S.user ? S.user.uid : "");
+const hashStr = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return String(h); };
+const profKey = (name, avatar) => (name || "") + "|" + hashStr(avatar || "");
+function readSynced() { try { return JSON.parse(lsGet(syncKey()) || "null"); } catch (e) { return null; } }
+function writeSynced(patch) { lsSet(syncKey(), JSON.stringify({ ...(readSynced() || {}), ...patch })); }
+// Older published rules only accept fresh / warm / dark. These map back to forest / night
+// on read, so saving still works before the new rules are published.
+const LEGACY_THEME = { forest: "fresh", night: "dark" };
 function pushUserDoc() {
   if (!S.user || !S.profileReady || !S.profile.name) return;
   const name = S.profile.name.trim().slice(0, 40);
   if (!name) return;
-  setDoc(doc(db, "users", S.user.uid), {
-    name,
-    avatar: S.profile.avatar || "",
-    theme: S.theme,
-    lang: S.lang
-  }, { merge: true }).catch(() => {});
+  const uid = S.user.uid, ref = doc(db, "users", uid);
+  const data = { name, avatar: S.profile.avatar || "", theme: S.theme, lang: S.lang };
+  const done = () => { if (S.user && S.user.uid === uid) writeSynced({ theme: data.theme, lang: data.lang, prof: profKey(data.name, data.avatar) }); };
+  const legacy = { ...data, theme: LEGACY_THEME[data.theme] || "fresh" };
+  // Once old rules are detected, write the old theme names straight away (no extra failed round trip).
+  (pushUserDoc.legacy ? setDoc(ref, legacy, { merge: true }) : setDoc(ref, data, { merge: true })).then(done)
+    .catch(() => setDoc(ref, legacy, { merge: true }).then(() => { pushUserDoc.legacy = true; done(); }))
+    .catch(() => setDoc(ref, { name: data.name, avatar: data.avatar }, { merge: true }).then(() => { if (S.user && S.user.uid === uid) writeSynced({ prof: profKey(data.name, data.avatar) }); }))
+    .catch(() => {});
+}
+// Decide one setting: returns "local" (keep this phone's, upload it) or "server".
+function pickSide(localVal, serverVal, syncedVal, hasLocal) {
+  if (localVal === serverVal) return "same";
+  if (syncedVal != null) return syncedVal === serverVal ? "local" : "server";
+  return hasLocal ? "local" : "server";
 }
 function pushMemberInfo(announce) {
   if (!S.user || !S.profile.name) return;
@@ -582,21 +614,38 @@ function handleUserDoc(snap) {
   const prev = S.profile.name + "|" + S.profile.avatar + "|" + S.lang + "|" + S.theme;
   S.profileReady = true;
   S.userDocExists = snap.exists();
+  let upload = false;
   if (snap.exists()) {
     const d = snap.data() || {};
-    if (!localProfileTouched) {
-      if (typeof d.name === "string" && d.name.trim()) S.profile.name = d.name.trim().slice(0, 40);
-      if (typeof d.avatar === "string") S.profile.avatar = safeAvatar(d.avatar);
-      cacheProfile();
+    const synced = readSynced() || {};
+    const sTheme = typeof d.theme === "string" ? normTheme(d.theme) : null;
+    const sLang = d.lang === "zh" || d.lang === "en" ? d.lang : null;
+    const sName = typeof d.name === "string" && d.name.trim() ? d.name.trim().slice(0, 40) : "";
+    const sAvatar = typeof d.avatar === "string" ? safeAvatar(d.avatar) : "";
+    if (!localProfileTouched && sName) {
+      const side = pickSide(profKey(S.profile.name, S.profile.avatar), profKey(sName, sAvatar), synced.prof, !!readProfileCache(S.user.uid));
+      if (side === "server") { S.profile.name = sName; S.profile.avatar = sAvatar; cacheProfile(); writeSynced({ prof: profKey(sName, sAvatar) }); }
+      else if (side === "local") { upload = true; localProfileTouched = true; }
+      else writeSynced({ prof: profKey(sName, sAvatar) });
     }
-    if (!localThemeTouched && typeof d.theme === "string") setTheme(normTheme(d.theme), false);
-    if (!localLangTouched && (d.lang === "zh" || d.lang === "en")) setLang(d.lang, false);
+    if (!localThemeTouched && sTheme) {
+      const side = pickSide(S.theme, sTheme, synced.theme ? normTheme(synced.theme) : null, !!lsGet("pref_theme"));
+      if (side === "server") { setTheme(sTheme, false); lsSet("pref_theme", sTheme); writeSynced({ theme: sTheme }); }
+      else if (side === "local") upload = true;
+      else writeSynced({ theme: sTheme });
+    }
+    if (!localLangTouched && sLang) {
+      const side = pickSide(S.lang, sLang, synced.lang || null, !!lsGet("pref_lang"));
+      if (side === "server") { setLang(sLang, false); lsSet("pref_lang", sLang); writeSynced({ lang: sLang }); }
+      else if (side === "local") upload = true;
+      else writeSynced({ lang: sLang });
+    }
   } else if (!localProfileTouched) {
     adoptWorkspaceProfile();
     if (!S.profile.name) S.profile.name = fallbackName();
     pushUserDoc();
   }
-  if (localThemeTouched || localLangTouched || localProfileTouched) pushUserDoc();
+  if (upload || localThemeTouched || localLangTouched || localProfileTouched) pushUserDoc();
   maybeMirror();
   renderTop();
   const next = S.profile.name + "|" + S.profile.avatar + "|" + S.lang + "|" + S.theme;
@@ -711,7 +760,7 @@ function clearData() {
   unsubData.forEach((f) => f()); unsubData = [];
   Object.values(unsubTxns).forEach((f) => f()); unsubTxns = {};
   Object.values(unsubTrips).forEach((f) => f()); unsubTrips = {};
-  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null, reportRows: [], reportKey: "", repCats: null });
+  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null, reportRows: [], reportKey: "", repCats: null, repMember: "" });
 }
 function switchWs(id) {
   clearData(); S.wsId = id || null;
@@ -901,7 +950,8 @@ $("#m-prev").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month
 $("#m-next").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); subExpenses(); renderHome(); };
 $("#r-prev").onclick = () => { S.repMonth = new Date(S.repMonth.getFullYear(), S.repMonth.getMonth() - 1, 1); subReport(); renderReport(); };
 $("#r-next").onclick = () => { S.repMonth = new Date(S.repMonth.getFullYear(), S.repMonth.getMonth() + 1, 1); subReport(); renderReport(); };
-document.querySelectorAll("#chart-mode button").forEach((b) => (b.onclick = () => { S.repMode = b.dataset.m; document.querySelectorAll("#chart-mode button").forEach((x) => x.classList.toggle("on", x === b)); renderReport(); }));
+document.querySelectorAll("#chart-mode button").forEach((b) => b.classList.toggle("on", b.dataset.m === S.repMode));
+document.querySelectorAll("#chart-mode button").forEach((b) => (b.onclick = () => { S.repMode = b.dataset.m; lsSet("pref_repmode", S.repMode); document.querySelectorAll("#chart-mode button").forEach((x) => x.classList.toggle("on", x === b)); renderReport(); }));
 $("#rep-cat-filter").onclick = () => { S.repCatsOpen = !S.repCatsOpen; renderReport(); };
 $("#filter-toggle").onclick = () => { S.filters.open = !S.filters.open; renderHome(); };
 $("#filter-clear").onclick = () => { S.filters = emptyFilters(S.filters.open); renderHome(); };
@@ -1040,7 +1090,7 @@ function subReport() {
 }
 function rowsInMonth(d, kind = "expense") {
   const prefix = monthValue(d);
-  return (S.reportRows || []).filter((e) => (e.date || "").startsWith(prefix) && (kind === "income" ? isIncome(e) : !isIncome(e)));
+  return (S.reportRows || []).filter((e) => (e.date || "").startsWith(prefix) && (kind === "income" ? isIncome(e) : !isIncome(e)) && (!S.repMember || e.memberUid === S.repMember));
 }
 const sumAmount = (rows) => rows.reduce((s, e) => s + Number(e.amount || 0), 0);
 // Totals are keyed by id (not by display name) so two members or categories
@@ -1174,13 +1224,22 @@ function renderReport() {
   if (!sum) return;
   $("#r-label").textContent = monthLabel(S.repMonth);
   if (!S.wsId) { sum.innerHTML = `<p>${t("noWsYet")}</p>`; return; }
+  const members = memberList();
+  if (S.repMember && !members.some((m) => m.id === S.repMember)) S.repMember = "";
+  const mf = $("#rep-members");
+  mf.classList.toggle("hidden", members.length < 2);
+  if (members.length >= 2) {
+    mf.innerHTML = `<button type="button" class="chip${S.repMember ? "" : " on"}" data-rm="">${t("repAllMembers")}</button>` + members.map((m) => `<button type="button" class="chip mem${S.repMember === m.id ? " on" : ""}" data-rm="${esc(m.id)}">${avatarEl(ws()?.memberInfo?.[m.id]?.avatar, m.name, "av xs")}${esc(m.name)}</button>`).join("");
+    mf.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { S.repMember = b.dataset.rm; renderReport(); }));
+  }
   const spend = rowsInMonth(S.repMonth), total = sumAmount(spend);
   const income = sumAmount(rowsInMonth(S.repMonth, "income"));
   const prev = new Date(S.repMonth.getFullYear(), S.repMonth.getMonth() - 1, 1);
   const prevTotal = sumAmount(rowsInMonth(prev));
-  sum.innerHTML = `<div class="total"><span>${t("monthSpend")}</span><b>${fmt(total)}</b><em>${changeHtml(total, prevTotal)} ${t("vsLastMonth")}</em></div>
+  sum.innerHTML = (S.repMember ? `<div class="rep-who">${esc(t("repMemberOnly", { name: memberName(S.repMember) }))}</div>` : "") + `<div class="total"><span>${t("monthSpend")}</span><b>${fmt(total)}</b><em>${changeHtml(total, prevTotal)} ${t("vsLastMonth")}</em></div>
     <div class="hero-stats"><div><span>${t("monthIncome")}</span><b>${fmt(income)}</b></div><div><span>${t("monthNet")}</span><b>${fmt(income - total)}</b></div></div>`;
-  renderBudget(spend);
+  // Budgets are shared by the whole workspace, so they're only shown for everyone.
+  if (S.repMember) { $("#rep-budget").classList.add("hidden"); } else renderBudget(spend);
   renderPie(spend, total);
   const months = reportMonths();
   renderCatTrend(months);
@@ -2196,8 +2255,13 @@ function renderSettings() {
   if (S.dragging) { S.settingsStale = true; return; }
   const name = S.profile.name || fallbackName();
   const parts = [];
-  parts.push(`<div class="card profile-card"><button id="s-avatar" class="avatar-btn" type="button">${avatarEl(S.profile.avatar, name, "av lg")}</button><div class="profile-fields"><label class="sec-title">${t("displayName")}</label><div class="inline"><input id="s-dname" maxlength="40" value="${esc(name)}"><button class="btn primary" id="s-savename" type="button">${t("save")}</button></div><div class="muted">${esc(S.user.email || "")}</div></div></div>`);
-  parts.push(`<div class="card"><b class="sec-title">${t("language")}</b><div class="seg" id="s-lang"><button type="button" data-lang="zh" class="${S.lang === "zh" ? "on" : ""}">简体中文</button><button type="button" data-lang="en" class="${S.lang === "en" ? "on" : ""}">English</button></div><b class="sec-title blk">${t("theme")}</b><div class="themes">${THEMES.map((id) => `<button type="button" class="theme-opt${S.theme === id ? " on" : ""}" data-theme-pick="${id}"><i class="swatch ${id}"></i><span>${t("theme_" + id)}</span></button>`).join("")}</div></div>`);
+  // Each setting group is a drop-down. Which ones are open is remembered on this phone.
+  if (!S.accOpen) { try { S.accOpen = new Set(JSON.parse(lsGet("pref_acc") || "[]")); } catch (e) { S.accOpen = new Set(); } }
+  const acc = (id, icon, title, summary, body) => `<div class="card acc${S.accOpen.has(id) ? " open" : ""}" data-acc="${id}"><button type="button" class="acc-h" aria-expanded="${S.accOpen.has(id)}"><span class="acc-ic">${icon}</span><span class="acc-t"><b>${title}</b><small>${summary}</small></span><span class="chev" aria-hidden="true"></span></button><div class="acc-b"><div class="acc-in">${body}</div></div></div>`;
+  parts.push(acc("profile", avatarEl(S.profile.avatar, name, "av sm"), t("profile"), `${esc(name)} · ${esc(S.user.email || "")}`,
+    `<div class="profile-card"><button id="s-avatar" class="avatar-btn" type="button">${avatarEl(S.profile.avatar, name, "av lg")}</button><div class="profile-fields"><label class="sec-title">${t("displayName")}</label><div class="inline"><input id="s-dname" maxlength="40" value="${esc(name)}"><button class="btn primary" id="s-savename" type="button">${t("save")}</button></div><div class="muted">${esc(S.user.email || "")}</div></div></div>`));
+  parts.push(acc("look", "🎨", t("appearance"), `${S.lang === "en" ? "English" : "简体中文"} · ${t("theme_" + S.theme)}`,
+    `<b class="sec-title">${t("language")}</b><div class="seg" id="s-lang"><button type="button" data-lang="zh" class="${S.lang === "zh" ? "on" : ""}">简体中文</button><button type="button" data-lang="en" class="${S.lang === "en" ? "on" : ""}">English</button></div><b class="sec-title blk">${t("theme")}</b><div class="themes">${THEMES.map((id) => `<button type="button" class="theme-opt${S.theme === id ? " on" : ""}" data-theme-pick="${id}"><i class="swatch ${id}"></i><span>${t("theme_" + id)}</span></button>`).join("")}</div><p class="muted">${t("prefsKept")}</p>`));
   if (!w) parts.push(`<div class="card empty">${t("noWs")}</div>`);
   else {
     const isOwner = w.ownerUid === S.user.uid;
@@ -2207,33 +2271,48 @@ function renderSettings() {
       return `<div class="list-row cat-row" data-cid="${esc(c.id)}"><span class="drag" data-drag aria-label="${esc(t("dragHint"))}" title="${esc(t("dragHint"))}">⋮⋮</span><button class="ic-pick${icon ? "" : " letter"}" type="button" data-edit="${c.id}">${face}</button><button class="grow cat-name" type="button" data-edit="${c.id}">${esc(c.name)}</button><button class="del" type="button" data-k="categories" data-id="${c.id}">${t("delete")}</button></div>`;
     };
     const cardRow = (c) => `<div class="list-row"><span class="grow">${esc(c.name)}</span><button class="del" type="button" data-k="cards" data-id="${c.id}">${t("delete")}</button></div>`;
-    parts.push(`<div class="card"><b class="sec-title">${t("wsName")}</b><div class="inline"><input id="s-name" value="${esc(w.name)}"><button class="btn primary" id="s-rename" type="button">${t("save")}</button></div><label class="sec-title">${t("currency")}</label><select id="s-cur">${currencyOptions(currencyOf(w).code)}</select><div class="muted">${t("currencyHint")}</div><label class="sec-title blk" for="s-budget">${t("monthlyBudget")} (${esc(currencyOf(w).symbol)})</label><div class="inline"><input id="s-budget" type="text" inputmode="numeric" autocomplete="off"><button class="btn primary" id="s-savebudget" type="button">${t("save")}</button></div><div class="muted">${t("budgetHint")}</div></div>`);
+    const budget = Number(w.budget) || 0;
+    parts.push(acc("ws", "📒", t("wsSettings"), `${esc(w.name)} · ${esc(currencyOf(w).code)} · ${budget ? t("budget") + " " + fmt(budget) : t("noBudget")}`,
+      `<b class="sec-title">${t("wsName")}</b><div class="inline"><input id="s-name" value="${esc(w.name)}"><button class="btn primary" id="s-rename" type="button">${t("save")}</button></div><label class="sec-title">${t("currency")}</label><select id="s-cur">${currencyOptions(currencyOf(w).code)}</select><div class="muted">${t("currencyHint")}</div><label class="sec-title blk" for="s-budget">${t("monthlyBudget")} (${esc(currencyOf(w).symbol)})</label><div class="inline"><input id="s-budget" type="text" inputmode="numeric" autocomplete="off"><button class="btn primary" id="s-savebudget" type="button">${t("save")}</button></div><div class="muted">${t("budgetHint")}</div>`));
     const expCats = S.cats.filter((c) => catKind(c) === "expense"), incCats = S.cats.filter((c) => catKind(c) === "income");
-    parts.push(`<div class="card"><div class="sec-head"><b class="sec-title">${t("expenseCats")}</b><small class="muted">${t("dragHint")}</small></div><div class="sortable" data-kind="expense">${expCats.map(catRow).join("")}</div><button class="btn block" id="s-addcat" type="button">${t("add")}</button></div>`);
-    parts.push(`<div class="card"><div class="sec-head"><b class="sec-title">${t("incomeCats")}</b><small class="muted">${t("dragHint")}</small></div><div class="sortable" data-kind="income">${incCats.map(catRow).join("")}</div><button class="btn block" id="s-addinc" type="button">${t("add")}</button></div>`);
+    const catNames = (list) => list.slice(0, 4).map((c) => esc(catLabel(c))).join("、") + (list.length > 4 ? " …" : "");
+    parts.push(acc("expcats", "🧾", t("expenseCats"), `${t("countN", { n: expCats.length })}${expCats.length ? " · " + catNames(expCats) : ""}`,
+      `<p class="muted">${t("dragHint")}</p><div class="sortable" data-kind="expense">${expCats.map(catRow).join("")}</div><button class="btn block" id="s-addcat" type="button">${t("add")}</button>`));
+    parts.push(acc("inccats", "💼", t("incomeCats"), `${t("countN", { n: incCats.length })}${incCats.length ? " · " + catNames(incCats) : ""}`,
+      `<p class="muted">${t("dragHint")}</p><div class="sortable" data-kind="income">${incCats.map(catRow).join("")}</div><button class="btn block" id="s-addinc" type="button">${t("add")}</button>`));
     const recRow = (r) => {
       const c = catOf(r.categoryId);
       const label = r.remark || (c ? c.name : t("uncategorized"));
       const inc = r.type === "income";
       return `<div class="list-row rec-row" data-rec="${esc(r.id)}"><span class="ic-pick">${esc(safeIcon(c?.icon) || "🔁")}</span><span class="grow"><b class="rec-name">${esc(label)}</b><span class="muted">${r.active === false ? `<span class="pill">${t("paused")}</span> ` : ""}${t("everyMonthDay", { day: Number(r.day) || 1 })}${r.active === false ? "" : " · " + t("recurNext", { date: esc(nextRecurDate(r)) })}</span></span><span class="amt-s${inc ? " in" : ""}">${inc ? "+" : "-"}${fmt(r.amount)}</span></div>`;
     };
-    parts.push(`<div class="card"><b class="sec-title">🔁 ${t("recurring")}</b>${S.recurring.length ? S.recurring.map(recRow).join("") : `<p class="muted">${t("recurringEmpty")}</p>`}<button class="btn block" id="s-addrec" type="button">${t("add")}</button></div>`);
-    parts.push(`<div class="card"><b class="sec-title">${t("cards")}</b>${S.cards.map(cardRow).join("")}<div class="inline"><input id="s-card" placeholder="${esc(t("newCardPh"))}"><button class="btn primary" id="s-addcard" type="button">${t("add")}</button></div></div>`);
-    parts.push(`<div class="card"><b class="sec-title">${t("members")}</b>${(w.members || []).map((uid) => `<div class="list-row"><span class="who">${avatarEl(w.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<span class="meta">${esc(memberName(uid))}${uid === w.ownerUid ? ` <span class="muted">（${t("owner")}）</span>` : ""}<span class="muted em">${esc(w.memberInfo?.[uid]?.email || "")}</span></span></span>${isOwner && uid !== w.ownerUid ? `<button class="del" type="button" data-rm="${uid}">${t("remove")}</button>` : ""}</div>`).join("")}
+    const paused = S.recurring.filter((r) => r.active === false).length;
+    parts.push(acc("rec", "🔁", t("recurring"), t("countN", { n: S.recurring.length }) + (paused ? ` · ${t("paused")} ${paused}` : ""),
+      `${S.recurring.length ? S.recurring.map(recRow).join("") : `<p class="muted">${t("recurringEmpty")}</p>`}<button class="btn block" id="s-addrec" type="button">${t("add")}</button>`));
+    parts.push(acc("cards", "💳", t("cards"), `${t("countN", { n: S.cards.length })}${S.cards.length ? " · " + S.cards.slice(0, 3).map((c) => esc(c.name)).join("、") : ""}`,
+      `${S.cards.map(cardRow).join("")}<div class="inline"><input id="s-card" placeholder="${esc(t("newCardPh"))}"><button class="btn primary" id="s-addcard" type="button">${t("add")}</button></div>`));
+    const pend = (w.invitedEmails || []).length;
+    parts.push(acc("members", "👥", t("members"), t("people", { n: (w.members || []).length }) + (pend ? ` · ${t("pending")} ${pend}` : ""),
+      `${(w.members || []).map((uid) => `<div class="list-row"><span class="who">${avatarEl(w.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<span class="meta">${esc(memberName(uid))}${uid === w.ownerUid ? ` <span class="muted">（${t("owner")}）</span>` : ""}<span class="muted em">${esc(w.memberInfo?.[uid]?.email || "")}</span></span></span>${isOwner && uid !== w.ownerUid ? `<button class="del" type="button" data-rm="${uid}">${t("remove")}</button>` : ""}</div>`).join("")}
       ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="btn small" type="button" data-share="${esc(em)}">${t("copyInvite")}</button> <button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
       <div class="inline"><input id="s-inv" type="email" placeholder="${esc(t("invitePh"))}"><button class="btn primary" id="s-invite" type="button">${t("invite")}</button></div>
       <div class="muted">${t("inviteHint")}</div>
       <textarea id="s-share" rows="4" readonly>${esc(S.inviteText || "")}</textarea>
-      <div class="btns"><button class="btn" id="s-copy" type="button">${t("copyInvite")}</button><button class="btn primary" id="s-send" type="button">${t("shareInvite")}</button></div></div>`);
-    if (isOwner) parts.push(`<button class="btn danger block" id="s-delete-ws" type="button">${t("deleteWs")}</button>`);
-    else parts.push(`<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`);
+      <div class="btns"><button class="btn" id="s-copy" type="button">${t("copyInvite")}</button><button class="btn primary" id="s-send" type="button">${t("shareInvite")}</button></div>`));
   }
-  parts.push(`<button class="btn block" id="s-logout" type="button">${t("logout")}</button>`);
+  parts.push(acc("account", "🚪", t("account"), w ? (w.ownerUid === S.user.uid ? t("accountSumOwner") : t("accountSumMember")) : t("logout"),
+    `${w ? (w.ownerUid === S.user.uid ? `<button class="btn danger block" id="s-delete-ws" type="button">${t("deleteWs")}</button>` : `<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`) : ""}<button class="btn block" id="s-logout" type="button">${t("logout")}</button>`));
   // Data from other members re-renders this page. Keep whatever the user is typing.
   const typed = {};
   el.querySelectorAll("input[id][data-dirty]").forEach((x) => { typed[x.id] = { value: x.value, cents: x.dataset.cents }; });
   const focusId = el.contains(document.activeElement) ? document.activeElement.id : "";
   el.innerHTML = parts.join("");
+  el.querySelectorAll(".acc-h").forEach((h) => (h.onclick = () => {
+    const box = h.closest(".acc"), id = box.dataset.acc, open = !box.classList.contains("open");
+    box.classList.toggle("open", open); h.setAttribute("aria-expanded", String(open));
+    if (open) S.accOpen.add(id); else S.accOpen.delete(id);
+    lsSet("pref_acc", JSON.stringify([...S.accOpen]));
+  }));
   $("#s-avatar").onclick = () => openAvatarPicker();
   const saveName = () => { delete $("#s-dname").dataset.dirty; saveProfile({ name: $("#s-dname").value }); };
   $("#s-savename").onclick = saveName;
