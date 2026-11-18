@@ -511,3 +511,105 @@ body.fan-open .tab-spot{opacity:.25}
 .hist-ic.in{background:var(--ok-bg);color:var(--g)}
 .hist-ic.out{background:var(--danger-bg);color:var(--amt)}
 .hist-who{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--m);font-size:13px;margin-left:4px}
+
+/* =====================================================================
+   Design refresh — forest icon set, softer surfaces, consistent controls.
+   Layout and behaviour are unchanged; this block only restyles.
+   ===================================================================== */
+:root{--r-card:22px;--ring:color-mix(in srgb,var(--g) 22%,transparent);--ico-d:.16;--sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235f7363' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E")}
+[data-theme="night"]{--ico-d:.22;--sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238fa99a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E")}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:.005em}
+
+/* icons */
+.ico{width:22px;height:22px;display:block;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.ico .d{fill:currentColor;stroke:none;opacity:var(--ico-d)}
+.ico.sm{width:18px;height:18px}
+.ico.xs{width:14px;height:14px;stroke-width:2}
+.btn .ico,.chip-toggle .ico,.seg .ico{display:inline-block;vertical-align:-3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.ico-title{display:flex;align-items:center;gap:6px}
+.ico-title .ico{color:var(--g)}
+.receipt-tag,.pill{display:inline-flex;align-items:center;vertical-align:-2px}
+.receipt-tag{color:var(--m);margin-left:6px}
+.pill .ico{color:var(--g)}
+
+/* tab bar, top bar, fan */
+.tabs > button .tab-ico{filter:none!important;opacity:1;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.tabs > button .tab-ico .ico{width:23px;height:23px}
+.tabs > button:not(.on) .tab-ico{opacity:.62}
+.tabs > button.on .tab-ico .ico .d{opacity:.34}
+.tabs > button.on .tab-ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--g) 45%,transparent))!important}
+.tabs > button .tab-ico .tabung{width:23px;height:23px}
+.tabs > button:not(.on) .tab-ico .tabung{filter:saturate(.35)}
+.top-icon{color:var(--t)}
+.top-icon .ico{width:21px;height:21px}
+.top-icon.on{color:var(--g)}
+.month-bar button{display:flex;align-items:center;justify-content:center;padding:0;border-radius:14px;transition:background-color .2s}
+.month-bar button .ico{width:24px;height:24px;stroke-width:2.2}
+.hero .month-bar button:active{background:rgba(255,255,255,.14)}
+.fan-ico{color:var(--g)}
+.fan-ico .ico{width:28px;height:28px}
+.fan-ico[data-icon]{padding:0}
+
+/* sheet header & keypad icons */
+.icon-btn .ico{width:20px;height:20px}
+.icon-btn.danger{color:var(--r)}
+.icon-btn:active{transform:scale(.94)}
+.ck .ico{width:24px;height:24px;margin:auto}
+.ck.ctoggle .ico .d{opacity:.22}
+.ck.ctoggle[aria-pressed="true"] .ico .d{opacity:.35}
+.chip-toggle{display:inline-flex;align-items:center;gap:4px}
+
+/* settings section icons */
+.acc-ic{background:var(--ok-bg);color:var(--g)}
+.acc-ic .ico{width:21px;height:21px}
+.acc-ic .av{box-shadow:none}
+
+/* trip / fund list icons */
+.item .ic.emo .ico,.hist-ic .ico{width:20px;height:20px}
+.item .ic.emo{color:var(--g)}
+.trip-hero-ic{display:flex;justify-content:center;color:var(--g)}
+.trip-hero-ic .ico{width:56px;height:56px;stroke-width:1.5}
+.trip-actions .btn{min-height:48px}
+
+/* surfaces */
+.card{border-radius:var(--r-card);border-color:color-mix(in srgb,var(--b) 75%,transparent);box-shadow:0 1px 2px rgba(16,40,28,.04),0 10px 28px -8px rgba(16,40,28,.12)}
+[data-theme="night"] .card{box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 12px 30px -10px rgba(0,0,0,.6)}
+.card.hero{box-shadow:0 1px 0 rgba(255,255,255,.14) inset,0 22px 40px -18px var(--glow),0 6px 14px -6px rgba(0,0,0,.25)}
+[data-theme="forest"] .card.hero::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 0% 0%,rgba(255,255,255,.16),transparent 55%),radial-gradient(60% 60% at 100% 0%,rgba(233,196,106,.18),transparent 60%)}
+.card.hero>*{position:relative;z-index:1}
+.list-card{padding:2px 14px}
+.item{padding:13px 4px;margin:0 -4px}
+.item .ic{border-radius:15px}
+.day-h{font-size:12px;letter-spacing:.02em;margin:18px 6px 8px}
+.sec-title{letter-spacing:-.01em}
+h2{font-weight:800;letter-spacing:-.03em}
+.empty{border:1.5px dashed color-mix(in srgb,var(--b) 90%,transparent);border-radius:var(--r-card);background:color-mix(in srgb,var(--card) 55%,transparent);margin:12px 0}
+
+/* controls */
+.btn{border-radius:14px;min-height:44px;transition:transform .12s ease,box-shadow .2s ease,background-color .2s ease}
+.btn.small{min-height:34px;border-radius:11px}
+.btn.primary{box-shadow:0 1px 0 rgba(255,255,255,.22) inset,0 8px 18px -6px var(--glow)}
+.btn:not(.primary):not(.danger){background:var(--chip);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--b) 60%,transparent)}
+input,select,textarea{border-radius:13px;transition:border-color .2s ease,box-shadow .2s ease}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 3px var(--ring)}
+select{-webkit-appearance:none;appearance:none;background-image:var(--sel-arrow);background-repeat:no-repeat;background-position:right 10px center;background-size:18px;padding-right:34px}
+.seg{border-radius:14px}
+.seg button{border-radius:11px;transition:background-color .2s,color .2s}
+.seg button.on{box-shadow:0 1px 2px rgba(0,0,0,.08),0 4px 10px -4px rgba(0,0,0,.12)}
+.chip{transition:background-color .2s,color .2s}
+.ws-btn{background:var(--nav);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:var(--nav-border)}
+.ws-btn::after{content:none}
+.sheet{border-radius:28px 28px 0 0}
+.grab{width:44px;height:5px;opacity:.7}
+.toast{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 30px -8px rgba(0,0,0,.35)}
+.ck{border-radius:15px;box-shadow:0 1px 0 color-mix(in srgb,var(--b) 70%,transparent)}
+.ck:not(.op):not(.save){background:color-mix(in srgb,var(--chip) 80%,var(--card))}
+
+/* boot + login */
+.boot-ic{display:block;width:76px;height:76px;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.logo{padding:10px;background:var(--hero)}
+.logo span{display:block;width:100%;height:100%}
+.logo .tabung .tb-body{fill:rgba(255,255,255,.18)}
+.logo .tabung .tb-fill{fill:#74c69d}
