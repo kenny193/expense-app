@@ -85,7 +85,7 @@ try {
     <div id="exp-list"></div>
   </section>
   <section id="page-funds" class="page hidden">
-    <div class="sec-head"><h2 data-i18n="fundsTitle">基金 · Tabung</h2></div>
+    <div class="sec-head" id="fund-head"><h2 data-i18n="fundsTitle">基金 · Tabung</h2><button class="btn small primary" id="fd-new" type="button">＋ <span data-i18n="newGoal">新建基金</span></button></div>
     <div id="fund-list"></div>
   </section>
   <section id="page-report" class="page hidden">
@@ -122,13 +122,13 @@ try {
   <div id="fan" class="fan" aria-hidden="true">
     <div class="fan-items">
       <button type="button" class="fan-btn" id="fan-expense"><span class="fan-ico">🧾</span><span class="fan-t" data-i18n="fanExpense">消费</span><small data-i18n="fanExpenseSub">支出或收入</small></button>
-      <button type="button" class="fan-btn" id="fan-fund"><span class="fan-ico">🐷</span><span class="fan-t" data-i18n="fanFund">基金</span><small data-i18n="fanFundSub">存入或新建基金</small></button>
+      <button type="button" class="fan-btn" id="fan-fund"><span class="fan-ico" data-tabung></span><span class="fan-t" data-i18n="fanFund">基金</span><small data-i18n="fanFundSub">存入或取出</small></button>
     </div>
   </div>
   <nav class="tabs" id="tabs">
     <span class="tab-spot" id="tab-spot" aria-hidden="true"></span>
     <button type="button" data-p="home" class="on"><span class="tab-ico" aria-hidden="true">🏠</span><span data-i18n="tabHome">首页</span></button>
-    <button type="button" data-p="funds"><span class="tab-ico" aria-hidden="true">🐷</span><span data-i18n="tabFunds">基金</span></button>
+    <button type="button" data-p="funds"><span class="tab-ico" aria-hidden="true" data-tabung></span><span data-i18n="tabFunds">基金</span></button>
     <div class="tab-mid"><button id="fab" class="fab" type="button" aria-expanded="false" aria-controls="fan"><span class="fab-plus" aria-hidden="true"></span></button></div>
     <button type="button" data-p="report"><span class="tab-ico" aria-hidden="true">📊</span><span data-i18n="tabReport">报表</span></button>
     <button type="button" data-p="trips"><span class="tab-ico" aria-hidden="true">🧳</span><span data-i18n="tabTrips">出游</span></button>

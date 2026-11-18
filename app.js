@@ -227,7 +227,7 @@ const I18N_ROWS = [
   ["fanExpense", "消费", "Expense"],
   ["fanExpenseSub", "支出或收入", "Spending or income"],
   ["fanFund", "基金", "Funds"],
-  ["fanFundSub", "存入或新建基金", "Deposit or new fund"],
+  ["fanFundSub", "存入或取出", "Deposit or withdraw"],
   ["theme_forest", "森林", "Forest"],
   ["catTrend", "分类变化", "Category changes"],
   ["catTrendHint", "最近 6 个月每个分类花了多少", "How much each category cost over the last 6 months"],
@@ -299,6 +299,25 @@ const I18N_ROWS = [
   ["accountSumMember", "退出账本 · 退出登录", "Leave workspace · Log out"],
   ["repAllMembers", "全部成员", "Everyone"],
   ["repMemberOnly", "只看 {name}", "Only {name}"],
+  ["calculator", "计算器", "Calculator"],
+  ["fundTotal", "全部基金", "All funds"],
+  ["fundsCount", "{n} 个基金", "{n} funds"],
+  ["thisMonthIn", "本月存入", "Put in this month"],
+  ["allFunds", "全部基金", "All funds"],
+  ["fundBalance", "已存", "Saved"],
+  ["goalOf", "目标 {amount}", "Goal {amount}"],
+  ["fundLeft", "还差 {amount}", "{amount} to go"],
+  ["fundReached", "已经达成目标 🎉", "Goal reached 🎉"],
+  ["fundNoTarget", "没有设目标金额", "No target set"],
+  ["perMonthNeed", "到 {date} 每月约存 {amount}", "about {amount}/month until {date}"],
+  ["duePassed", "已过目标日期", "past the target date"],
+  ["fundDue", "目标日期（可选）", "Target month (optional)"],
+  ["fundDueHint", "填了目标金额和日期，会帮你算每个月大约要存多少。", "With a target and a month, the app works out how much to put in each month."],
+  ["contributions", "每个人存了多少", "Who put in what"],
+  ["histAll", "全部", "All"],
+  ["balanceNow", "目前余额 {amount}", "Balance now {amount}"],
+  ["withdrawOver", "取出的金额比余额还多，确定吗？", "That's more than the balance. Withdraw anyway?"],
+  ["deleteFund", "删除基金", "Delete fund"],
   ["typeLabel", "收支", "Type"],
   ["typeExpense", "支出", "Expense"],
   ["typeIncome", "收入", "Income"],
@@ -760,7 +779,7 @@ function clearData() {
   unsubData.forEach((f) => f()); unsubData = [];
   Object.values(unsubTxns).forEach((f) => f()); unsubTxns = {};
   Object.values(unsubTrips).forEach((f) => f()); unsubTrips = {};
-  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null, reportRows: [], reportKey: "", repCats: null, repMember: "" });
+  Object.assign(S, { cats: [], cards: [], expenses: [], funds: [], txns: {}, recurring: [], trips: [], tripItems: {}, tripId: null, fundId: null, fundHist: "all", reportRows: [], reportKey: "", repCats: null, repMember: "" });
 }
 function switchWs(id) {
   clearData(); S.wsId = id || null;
@@ -790,6 +809,7 @@ function syncTrips() {
 }
 function syncTxns() {
   const ids = S.funds.map((f) => f.id);
+  if (S.fundId && !ids.includes(S.fundId)) S.fundId = null;
   Object.keys(unsubTxns).forEach((id) => { if (!ids.includes(id)) { unsubTxns[id](); delete unsubTxns[id]; delete S.txns[id]; } });
   ids.forEach((id) => { if (!unsubTxns[id]) unsubTxns[id] = onSnapshot(wsRef("funds", id, "txns"), (s) => { S.txns[id] = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderFunds(); }); });
 }
@@ -1518,9 +1538,30 @@ function calcPress(st, k) {
 function calcText(st) {
   return st.toks.map((tk) => (tk.n ? (tk.money ? moneyDigits(Number(tk.d || 0)) : tk.d || "0") : CALC_OPS[tk.v])).join(" ");
 }
+// Number pad by default (a 3×5 grid). 🧮 adds the ÷ × − + C = column for working things out.
 function calcHtml() {
   const k = (v, label, cls = "") => `<button type="button" class="ck${cls ? " " + cls : ""}" data-k="${v}">${label}</button>`;
-  return `<div class="calc">${k("7", "7")}${k("8", "8")}${k("9", "9")}${k("/", "÷", "op")}${k("4", "4")}${k("5", "5")}${k("6", "6")}${k("*", "×", "op")}${k("1", "1")}${k("2", "2")}${k("3", "3")}${k("-", "−", "op")}${k("00", "00")}${k("0", "0")}${k("back", "⌫", "op")}${k("+", "+", "op")}${k("clear", "C", "op")}${k("=", "=", "op")}<button type="button" class="ck save" id="f-save">${t("save")}</button></div>`;
+  return `<div class="calc" id="calc-pad">${k("7", "7")}${k("8", "8")}${k("9", "9")}${k("/", "÷", "op x")}${k("4", "4")}${k("5", "5")}${k("6", "6")}${k("*", "×", "op x")}${k("1", "1")}${k("2", "2")}${k("3", "3")}${k("-", "−", "op x")}${k("00", "00")}${k("0", "0")}${k("back", "⌫", "op")}${k("+", "+", "op x")}<button type="button" class="ck op ctoggle" data-k="calc" aria-pressed="false" aria-label="${esc(t("calculator"))}" title="${esc(t("calculator"))}">🧮</button>${k("clear", "C", "op x")}${k("=", "=", "op x")}<button type="button" class="ck save" id="f-save">${t("save")}</button></div>`;
+}
+function bindCalcPad(calc, paint, save) {
+  const pad = $("#calc-pad");
+  const isFull = () => pad.classList.contains("full");
+  const setFull = (on) => {
+    pad.classList.toggle("full", on);
+    pad.querySelector('[data-k="calc"]').setAttribute("aria-pressed", String(on));
+    // Closing the calculator finishes the sum, so the amount is a plain number again.
+    if (!on && calc.toks.some((tk) => !tk.n)) calcPress(calc, "=");
+    paint();
+  };
+  calcKeys = (k) => {
+    if (k === "save") return save();
+    if (k === "calc") return setFull(!isFull());
+    if ((CALC_OPS[k] || k === "=") && !isFull()) setFull(true); // typing + on a keyboard opens it too
+    calcPress(calc, k);
+    paint();
+  };
+  pad.querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => { calcKeys(b.dataset.k); if (navigator.vibrate) try { navigator.vibrate(5); } catch (x) {} }));
+  $("#f-save").onclick = save;
 }
 document.addEventListener("keydown", (e) => {
   if (!calcKeys || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1619,13 +1660,7 @@ function openExpense(e, presetType) {
     op.catch((x) => toast(errMsg(x)));
     closeModal(); toast(repeat ? t("repeatHint", { day: Number(data.date.slice(8, 10)) }) : t("saved"));
   };
-  calcKeys = (k) => {
-    if (k === "save") return save();
-    calcPress(calc, k);
-    paintAmt();
-  };
-  $("#sheet").querySelectorAll(".calc [data-k]").forEach((b) => (b.onclick = () => { calcKeys(b.dataset.k); if (navigator.vibrate) try { navigator.vibrate(5); } catch (x) {} }));
-  $("#f-save").onclick = save;
+  bindCalcPad(calc, paintAmt, save);
   paintAmt();
   // Long notes grow up to three lines instead of pushing the keypad off screen.
   const rem = $("#f-rem");
@@ -1692,97 +1727,222 @@ function openWsPicker() {
   onEnter($("#ws-new"), make);
 }
 
-/* ---------- Funds ---------- */
+/* ---------- Funds (Tabung) ----------
+   funds/{id}: { name, target, due: "YYYY-MM" (optional) }
+   funds/{id}/txns/{id}: { type: "deposit" | "withdraw", amount, date, memberUid, remark } */
+let tabungSeq = 0;
+// The tabung icon: a coin tin with a coin dropping into the slot and a leaf on the front.
+// pct (0–1) fills the tin to show how close the fund is to its target.
+function tabungSvg(pct = 1, cls = "") {
+  const p = Math.max(0, Math.min(1, Number(pct) || 0));
+  const id = "tbc" + (++tabungSeq);
+  const h = 18 * p;
+  const fill = p >= 1
+    ? `<rect x="6" y="11" width="20" height="18" rx="4" class="tb-fill"/>`
+    : `<clipPath id="${id}"><rect x="6" y="11" width="20" height="18" rx="4"/></clipPath><rect x="6" y="${(29 - h).toFixed(2)}" width="20" height="${h.toFixed(2)}" class="tb-fill" clip-path="url(#${id})"/>`;
+  return `<svg class="tabung${cls ? " " + cls : ""}" viewBox="0 0 32 32" aria-hidden="true">
+    <circle cx="16" cy="6" r="4.2" class="tb-coin"/><circle cx="16" cy="6" r="2.3" class="tb-coin-ring"/>
+    <rect x="6" y="11" width="20" height="18" rx="4" class="tb-body"/>${fill}
+    <rect x="6" y="15.2" width="20" height="1.5" class="tb-band"/><rect x="6" y="24.6" width="20" height="1.5" class="tb-band"/>
+    <path d="M16 23.4c-2.7-.4-3.6-2.4-3-4.6 2.4-.2 3.9 1.3 3 4.6zm0 0c.2-2.2 1.3-3.7 3.4-4.2.3 2.2-1 3.9-3.4 4.2z" class="tb-leaf"/>
+    <rect x="8.6" y="12.8" width="2" height="13.6" rx="1" class="tb-shine"/>
+    <rect x="4.5" y="8.8" width="23" height="4.4" rx="2.2" class="tb-lid"/><rect x="12" y="10.2" width="8" height="1.6" rx=".8" class="tb-slot"/>
+  </svg>`;
+}
 function fundStats(f) {
   const tx = S.txns[f.id] || [];
-  let bal = 0; const per = {};
-  tx.forEach((txn) => { const v = Number(txn.amount || 0) * (txn.type === "withdraw" ? -1 : 1); bal += v; per[txn.memberUid] = (per[txn.memberUid] || 0) + v; });
-  return { tx, bal, per };
+  let bal = 0, inMonth = 0, last = "";
+  const per = {}, thisMonth = monthValue(new Date());
+  tx.forEach((x) => {
+    const v = Number(x.amount || 0) * (x.type === "withdraw" ? -1 : 1);
+    bal += v;
+    per[x.memberUid] = (per[x.memberUid] || 0) + v;
+    if (x.type !== "withdraw" && (x.date || "").startsWith(thisMonth)) inMonth += Number(x.amount || 0);
+    if ((x.date || "") > last) last = x.date || "";
+  });
+  bal = round2(bal);
+  const target = Number(f.target) || 0;
+  const pct = target > 0 ? Math.max(0, bal / target) : 0;
+  const left = target > 0 ? Math.max(0, round2(target - bal)) : 0;
+  // How much a month is still needed to reach the target by the due month.
+  let perMonth = 0, monthsLeft = 0;
+  if (target > 0 && left > 0 && /^\d{4}-\d{2}$/.test(f.due || "")) {
+    const [y, m] = f.due.split("-").map(Number), now = new Date();
+    monthsLeft = (y - now.getFullYear()) * 12 + (m - 1 - now.getMonth()) + 1;
+    if (monthsLeft > 0) perMonth = round2(left / monthsLeft);
+  }
+  return { tx, bal, per, pct, left, target, inMonth, last, perMonth, monthsLeft };
+}
+function dueLabel(due) { return /^\d{4}-\d{2}$/.test(due || "") ? monthLabel(new Date(Number(due.slice(0, 4)), Number(due.slice(5, 7)) - 1, 1)) : ""; }
+function fundGoalLine(f, st) {
+  if (!st.target) return t("fundNoTarget");
+  if (st.bal >= st.target) return t("fundReached");
+  let s = t("fundLeft", { amount: fmt(st.left) });
+  if (st.perMonth) s += " · " + t("perMonthNeed", { date: dueLabel(f.due), amount: fmt(st.perMonth) });
+  else if (f.due && st.monthsLeft <= 0) s += " · " + t("duePassed");
+  return s;
 }
 function renderFunds() {
   if (S.page !== "funds" || !$("#fund-list")) return;
-  const colors = palette();
-  $("#fund-list").innerHTML = S.funds.length ? S.funds.map((f) => {
-    const { bal, per } = fundStats(f), pct = f.target > 0 ? Math.min(100, Math.max(0, (bal / f.target) * 100)) : 0;
-    const pos = Object.entries(per).filter(([, v]) => v > 0), sum = pos.reduce((s, [, v]) => s + v, 0);
-    return `<div class="card fund" data-id="${f.id}"><div class="sec-head"><b>${esc(f.name)}</b><span class="muted">${pct.toFixed(0)}%</span></div>
-      <div class="bar"><div style="width:${pct}%"></div></div>
-      <div class="muted">${t("savedSoFar", { bal: fmt(bal), target: fmt(f.target) })}</div>
-      ${pos.map(([uid, v], i) => `<div class="mbar">${avatarEl(ws()?.memberInfo?.[uid]?.avatar, memberName(uid), "av xs")}<span class="nm">${esc(memberName(uid))}</span><div class="bar"><div style="width:${sum ? (v / sum) * 100 : 0}%;background:${colors[(i + 1) % colors.length]}"></div></div><span>${sum ? Math.round((v / sum) * 100) : 0}%</span></div>`).join("")}</div>`;
-  }).join("") : `<div class="empty">${t("emptyFunds")}</div>`;
-  $("#fund-list").querySelectorAll(".fund").forEach((el) => (el.onclick = () => openFund(el.dataset.id)));
+  const f = S.fundId && S.funds.find((x) => x.id === S.fundId);
+  if (f) return renderFundDetail(f); // a just-created fund may not have arrived yet, so keep fundId
+  const all = S.funds.map((x) => ({ f: x, st: fundStats(x) }));
+  const total = round2(all.reduce((s, x) => s + x.st.bal, 0)), inMonth = all.reduce((s, x) => s + x.st.inMonth, 0);
+  $("#fund-head").classList.remove("hidden");
+  $("#fund-list").innerHTML = (all.length ? `<div class="card hero fund-hero"><div class="fund-hero-row"><div class="fund-hero-ic">${tabungSvg(1)}</div><div class="total"><span>${t("fundTotal")}</span><b>${fmt(total)}</b><em>${t("fundsCount", { n: all.length })}</em></div></div><div class="hero-stats one"><div><span>${t("thisMonthIn")}</span><b>+${fmt(inMonth)}</b></div></div></div>` : "")
+    + (all.length ? all.map(({ f: x, st }) => {
+      const contributors = Object.entries(st.per).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+      const avs = contributors.slice(0, 5).map(([uid]) => avatarEl(ws()?.memberInfo?.[uid]?.avatar, memberName(uid), "av xs")).join("");
+      return `<div class="card fund-card" data-fund="${esc(x.id)}">
+        <div class="fund-ic">${tabungSvg(st.target ? st.pct : 1)}</div>
+        <div class="grow">
+          <div class="fund-top"><b class="fund-name">${esc(x.name)}</b>${st.target ? `<span class="fund-pct${st.pct >= 1 ? " done" : ""}">${Math.floor(Math.min(st.pct, 9.99) * 100)}%</span>` : ""}</div>
+          <div class="fund-amt"><b>${fmt(st.bal)}</b>${st.target ? `<span class="muted"> / ${fmt(st.target)}</span>` : ""}</div>
+          ${st.target ? budgetBarFund(st.pct) : ""}
+          <div class="fund-meta"><span class="fund-avs">${avs}</span><span class="muted">${esc(fundGoalLine(x, st))}</span></div>
+        </div></div>`;
+    }).join("") : `<div class="card trip-empty"><div class="fund-empty-ic">${tabungSvg(0.35)}</div><p class="muted">${t("emptyFunds")}</p><button class="btn primary" id="fd-new2" type="button">＋ ${t("newGoal")}</button></div>`);
+  if ($("#fd-new2")) $("#fd-new2").onclick = () => openFundForm(null);
+  $("#fund-list").querySelectorAll("[data-fund]").forEach((el) => (el.onclick = () => { S.fundId = el.dataset.fund; window.scrollTo(0, 0); renderFunds(); }));
 }
+function budgetBarFund(pct) {
+  return `<div class="bar fund-bar${pct >= 1 ? " full" : ""}"><div style="width:${Math.min(100, pct * 100).toFixed(1)}%"></div></div>`;
+}
+function renderFundDetail(f) {
+  $("#fund-head").classList.add("hidden");
+  const st = fundStats(f);
+  const members = memberList();
+  const ids = [...new Set([...members.map((m) => m.id), ...Object.keys(st.per)])].filter((uid) => st.per[uid]);
+  const posSum = ids.reduce((s, uid) => s + Math.max(0, st.per[uid]), 0);
+  const colors = palette();
+  const contrib = ids.length ? ids.sort((a, b) => st.per[b] - st.per[a]).map((uid, i) => {
+    const v = round2(st.per[uid]), share = posSum && v > 0 ? v / posSum : 0;
+    return `<div class="ctb-row">${avatarEl(ws()?.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<div class="grow"><div class="sec-head"><b>${esc(memberName(uid))}</b><b class="${v < 0 ? "neg" : ""}">${fmt(v)}</b></div><div class="bar"><div style="width:${(share * 100).toFixed(1)}%;background:${colors[i % colors.length]}"></div></div></div><span class="muted ctb-pct">${Math.round(share * 100)}%</span></div>`;
+  }).join("") : `<p class="muted">${t("noRecords")}</p>`;
+  const filter = S.fundHist || "all";
+  const rows = [...st.tx].filter((x) => filter === "all" || (filter === "in" ? x.type !== "withdraw" : x.type === "withdraw"))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const byMonth = {};
+  rows.forEach((x) => (byMonth[(x.date || "").slice(0, 7)] = byMonth[(x.date || "").slice(0, 7)] || []).push(x));
+  const hist = rows.length ? Object.keys(byMonth).map((m) => {
+    const list = byMonth[m];
+    const inn = sumAmount(list.filter((x) => x.type !== "withdraw")), out = sumAmount(list.filter((x) => x.type === "withdraw"));
+    const label = /^\d{4}-\d{2}$/.test(m) ? monthLabel(new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1)) : "";
+    return `<div class="day-h"><span>${esc(label)}</span><span class="day-sum">${inn ? `<span class="in">+${fmt(inn)}</span>` : ""}${out ? `<span>-${fmt(out)}</span>` : ""}</span></div><div class="card list-card">` + list.map((x) => {
+      const w = x.type === "withdraw";
+      const d = validYmd(x.date || "") ? new Date(x.date + "T00:00:00") : null;
+      return `<div class="item hist-row" data-tx="${esc(x.id)}"><div class="hist-ic ${w ? "out" : "in"}">${w ? "↑" : "↓"}</div><div class="mid"><div class="ttl">${w ? t("withdraw") : t("deposit")} <span class="hist-who">${avatarEl(ws()?.memberInfo?.[x.memberUid]?.avatar, memberName(x.memberUid), "av xs")}${esc(memberName(x.memberUid))}</span></div>${x.remark ? `<div class="remark">${esc(x.remark)}</div>` : ""}<div class="sub"><span class="txt">${d ? esc(dayLabel(x.date)) : ""}</span></div></div><div class="amt${w ? "" : " in"}">${w ? "-" : "+"}${fmt(x.amount)}</div></div>`;
+    }).join("") + `</div>`;
+  }).join("") : `<div class="empty">${t("noRecords")}</div>`;
+  $("#fund-list").innerHTML = `<div class="trip-top"><button class="btn small" id="fd-back" type="button">‹ ${t("allFunds")}</button><button class="btn small" id="fd-edit" type="button">✏️ ${t("edit")}</button></div>
+    <div class="card hero fund-detail-hero">
+      <div class="fund-big">${tabungSvg(st.target ? st.pct : 1)}${st.target ? `<span class="fund-big-pct">${Math.floor(Math.min(st.pct, 9.99) * 100)}%</span>` : ""}</div>
+      <div class="trip-title">${esc(f.name)}</div>
+      <div class="total"><span>${t("fundBalance")}</span><b>${fmt(st.bal)}</b>${st.target ? `<em>${t("goalOf", { amount: fmt(st.target) })}</em>` : ""}</div>
+      ${st.target ? `<div class="fund-hero-bar">${budgetBarFund(st.pct)}</div>` : ""}
+      <p class="fund-goal-line">${esc(fundGoalLine(f, st))}</p>
+    </div>
+    <div class="trip-actions"><button class="btn primary" id="fd-in" type="button">↓ ${t("deposit")}</button><button class="btn" id="fd-out" type="button">↑ ${t("withdraw")}</button></div>
+    <div class="card"><b class="sec-title">${t("contributions")}</b>${contrib}</div>
+    <div class="sec-head list-title"><b class="sec-title">${t("records")}</b><div class="seg mini" id="fd-hist">${["all", "in", "out"].map((k) => `<button type="button" data-h="${k}" class="${filter === k ? "on" : ""}">${t(k === "all" ? "histAll" : k === "in" ? "deposit" : "withdraw")}</button>`).join("")}</div></div>
+    ${hist}`;
+  $("#fd-back").onclick = () => { S.fundId = null; S.fundHist = "all"; renderFunds(); };
+  $("#fd-edit").onclick = () => openFundForm(f);
+  $("#fd-in").onclick = () => openFundTxn(f.id, null, "deposit");
+  $("#fd-out").onclick = () => openFundTxn(f.id, null, "withdraw");
+  $("#fd-hist").querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => { S.fundHist = b.dataset.h; renderFunds(); }));
+  $("#fund-list").querySelectorAll("[data-tx]").forEach((el) => (el.onclick = () => openFundTxn(f.id, st.tx.find((x) => x.id === el.dataset.tx), null)));
+}
+// The + menu's "Funds" button: straight to a deposit, or create the first fund.
 function openFundMenu() {
   if (!S.wsId) return toast(t("needWs"));
-  openModal(`<h3>${t("fundMenu")}</h3><div class="choice-list"><button class="btn primary block" id="fm-new" type="button">${t("newGoal")}</button><button class="btn block" id="fm-txn" type="button">${t("addTxn")}</button></div>`);
-  $("#fm-new").onclick = () => openFundForm();
-  $("#fm-txn").onclick = () => { if (!S.funds.length) { toast(t("needFund")); openFundForm(); } else openQuickTxn(); };
+  if (!S.funds.length) return openFundForm(null);
+  const fid = (S.fundId && S.funds.some((x) => x.id === S.fundId)) ? S.fundId : (lsGet("pref_lastfund") && S.funds.some((x) => x.id === lsGet("pref_lastfund")) ? lsGet("pref_lastfund") : S.funds[0].id);
+  openFundTxn(fid, null, "deposit");
 }
-function openQuickTxn() {
-  if (!S.funds.length) return toast(t("needFund"));
-  openModal(`<h3>${t("addTxn")}</h3>
-  <label>${t("chooseFund")}</label><select id="qt-fund">${opts(S.funds, S.funds[0].id)}</select>
-  <div class="seg" id="qt-type"><button type="button" data-t="deposit" class="on">${t("deposit")}</button><button type="button" data-t="withdraw">${t("withdraw")}</button></div>
-  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="qt-amt" type="text" inputmode="numeric" autocomplete="off">
-  <label>${t("date")}</label><input id="qt-date" type="date" value="${today()}">
-  <label>${t("payer")}</label><select id="qt-mem">${opts(memberList(), S.user.uid)}</select>
-  <label>${t("remark")}</label><input id="qt-rem" placeholder="${esc(t("optional"))}">
-  <div class="btns"><button class="btn" id="qt-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="qt-save" type="button">${t("confirm")}</button></div>`);
-  bindMoneyInput($("#qt-amt"), 0);
-  let type = "deposit";
-  $("#qt-type").querySelectorAll("button").forEach((b) => (b.onclick = () => { type = b.dataset.t; $("#qt-type").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("#qt-cancel").onclick = closeModal;
-  $("#qt-save").onclick = () => {
-    const amount = readMoneyInput($("#qt-amt"));
-    const fundId = $("#qt-fund").value;
-    if (!fundId) return toast(t("needFund"));
-    if (!(amount > 0)) return toast(t("needAmount"));
-    addDoc(wsRef("funds", fundId, "txns"), { type, amount, date: $("#qt-date").value || today(), memberUid: $("#qt-mem").value, remark: $("#qt-rem").value.trim(), createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
-    toast(t("recorded")); closeModal();
+// Deposit / withdraw with the same one-screen calculator form as expenses.
+function openFundTxn(fundId, x, type) {
+  let kind = x ? (x.type === "withdraw" ? "withdraw" : "deposit") : (type || "deposit");
+  const sym = currencyOf(ws()).symbol;
+  const calc = calcNew(x ? x.amount : 0);
+  const seg = `<div class="seg type-seg" id="ft-type"><button type="button" data-ty="deposit" class="${kind === "deposit" ? "on" : ""}">↓ ${t("deposit")}</button><button type="button" data-ty="withdraw" class="${kind === "withdraw" ? "on" : ""}">↑ ${t("withdraw")}</button></div>`;
+  openModal(`<div class="xf">
+    <div class="xf-head"><button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">✕</button>${seg}${x ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">🗑</button>` : `<span class="icon-btn ghost"></span>`}</div>
+    <div class="xf-amt" id="f-amt-box"><span class="xf-sym">${esc(sym)}</span><div class="xf-nums"><div class="xf-expr" id="f-expr"></div><div class="xf-val" id="f-val">0.00</div></div></div>
+    <div class="xf-grid">
+      <label class="xf-field xf-wide"><span>${t("chooseFund")}</span><select id="ft-fund">${S.funds.map((f) => `<option value="${esc(f.id)}"${f.id === fundId ? " selected" : ""}>${esc(f.name)}</option>`).join("")}${x ? "" : `<option value="__new">＋ ${esc(t("newGoal"))}…</option>`}</select></label>
+      <label class="xf-field"><span>${t("date")}</span><input id="ft-date" type="date" value="${x?.date || today()}"></label>
+      <label class="xf-field"><span>${t("who")}</span><select id="ft-mem">${opts(memberList(), x?.memberUid || S.user.uid)}</select></label>
+      <label class="xf-field xf-wide"><span>${t("remark")}</span><input id="ft-rem" maxlength="80" value="${esc(x?.remark || "")}" placeholder="${esc(t("optional"))}"></label>
+    </div>
+    <p class="muted xf-note" id="ft-note"></p>
+    ${calcHtml()}
+  </div>`, "sheet-fit");
+  if (x) $("#ft-fund").disabled = true;
+  const note = () => {
+    const f = S.funds.find((q) => q.id === $("#ft-fund").value);
+    $("#ft-note").textContent = f ? t("balanceNow", { amount: fmt(fundStats(f).bal) }) : "";
   };
+  const paint = () => {
+    const v = calcValue(calc), hasOp = calc.toks.some((tk) => !tk.n);
+    $("#f-expr").textContent = hasOp ? calcText(calc) : "";
+    $("#f-val").textContent = isNaN(v) ? "—" : moneyDigits(Math.round(Math.max(0, v) * 100));
+    $("#f-amt-box").classList.toggle("in", kind === "deposit");
+    document.querySelector('.ck[data-k="="]').classList.toggle("live", hasOp);
+  };
+  $("#ft-type").querySelectorAll("[data-ty]").forEach((b) => (b.onclick = () => { kind = b.dataset.ty; $("#ft-type").querySelectorAll("[data-ty]").forEach((q) => q.classList.toggle("on", q === b)); paint(); }));
+  $("#ft-fund").onchange = () => { if ($("#ft-fund").value === "__new") { openFundForm(null); return; } note(); };
+  const save = () => {
+    const amount = calcValue(calc);
+    if (!(amount > 0)) return toast(t("needAmount"));
+    const fid = $("#ft-fund").value;
+    const f = S.funds.find((q) => q.id === fid);
+    if (!f) return toast(t("needFund"));
+    const prevAmt = x && x.type === "withdraw" ? Number(x.amount) : 0;
+    if (kind === "withdraw" && amount > fundStats(f).bal + prevAmt + 0.004 && !confirm(t("withdrawOver"))) return;
+    const data = { type: kind, amount, date: validYmd($("#ft-date").value) ? $("#ft-date").value : today(), memberUid: $("#ft-mem").value, remark: $("#ft-rem").value.trim() };
+    if (x) updateDoc(doc(wsRef("funds", fid, "txns"), x.id), data).catch((e) => toast(errMsg(e)));
+    else addDoc(wsRef("funds", fid, "txns"), { ...data, createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((e) => toast(errMsg(e)));
+    lsSet("pref_lastfund", fid);
+    closeModal(); toast(t("recorded"));
+  };
+  bindCalcPad(calc, paint, save);
+  $("#f-cancel").onclick = closeModal;
+  if (x) $("#f-del").onclick = () => { if (!confirm(t("confirmDeleteTxn"))) return; deleteDoc(doc(wsRef("funds", fundId, "txns"), x.id)).catch((e) => toast(errMsg(e))); closeModal(); };
+  note(); paint();
 }
 function openFundForm(f) {
-  openModal(`<h3>${f ? t("editGoal") : t("newGoal")}</h3><label>${t("goalName")}</label><input id="fd-name" value="${esc(f?.name || "")}" placeholder="${esc(t("goalPh"))}">
-  <label>${t("goalAmount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fd-target" type="text" inputmode="numeric" autocomplete="off">
-  <div class="btns"><button class="btn" id="fd-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="fd-save" type="button">${t("save")}</button></div>`);
+  if (!S.wsId) return toast(t("needWs"));
+  openModal(`<div class="fund-form-ic">${tabungSvg(f ? (Number(f.target) ? fundStats(f).pct : 1) : 0.4)}</div><h3>${f ? t("editGoal") : t("newGoal")}</h3>
+    <label>${t("goalName")}</label><input id="fd-name" maxlength="40" value="${esc(f?.name || "")}" placeholder="${esc(t("goalPh"))}">
+    <label>${t("goalAmount")} (${esc(currencyOf(ws()).symbol)}) · ${t("optional")}</label><input id="fd-target" type="text" inputmode="numeric" autocomplete="off">
+    <label>${t("fundDue")}</label><input id="fd-due" type="month" value="${esc(f?.due || "")}">
+    <p class="muted">${t("fundDueHint")}</p>
+    ${f ? `<button class="btn danger block" id="fd-del" type="button">${t("deleteFund")}</button>` : ""}
+    <div class="btns"><button class="btn" id="fd-cancel" type="button">${t("cancel")}</button><button class="btn primary" id="fd-save" type="button">${t("save")}</button></div>`);
   bindMoneyInput($("#fd-target"), f ? f.target : 0);
   $("#fd-cancel").onclick = closeModal;
   $("#fd-save").onclick = () => {
     const name = $("#fd-name").value.trim(), target = readMoneyInput($("#fd-target"));
+    const due = /^\d{4}-\d{2}$/.test($("#fd-due").value) ? $("#fd-due").value : "";
     if (!name) return toast(t("needName"));
-    (f ? updateDoc(doc(wsRef("funds"), f.id), { name, target }) : addDoc(wsRef("funds"), { name, target, createdAt: serverTimestamp() })).catch((x) => toast(errMsg(x)));
-    closeModal();
+    if (f) updateDoc(doc(wsRef("funds"), f.id), { name, target, due }).catch((x) => toast(errMsg(x)));
+    else {
+      const ref = doc(wsRef("funds"));
+      setDoc(ref, { name, target, due, createdBy: S.user.uid, createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
+      S.fundId = ref.id;
+      if (S.page !== "funds") showPage("funds");
+    }
+    closeModal(); toast(t("saved")); renderFunds();
   };
-}
-function openFund(id) {
-  const f = S.funds.find((x) => x.id === id); if (!f) return;
-  const { tx, bal } = fundStats(f);
-  const list = [...tx].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  openModal(`<div class="sec-head"><h3>${esc(f.name)}</h3><span><button class="btn small" id="fu-edit" type="button">${t("edit")}</button> <button class="btn small danger" id="fu-del" type="button">${t("delete")}</button></span></div>
-  <div class="muted">${t("balanceLine", { bal: fmt(bal), target: fmt(f.target) })}</div>
-  <div class="seg" id="fu-type" style="margin-top:10px"><button type="button" data-t="deposit" class="on">${t("deposit")}</button><button type="button" data-t="withdraw">${t("withdraw")}</button></div>
-  <label>${t("amount")} (${esc(currencyOf(ws()).symbol)})</label><input id="fu-amt" type="text" inputmode="numeric" autocomplete="off"><input id="fu-date" type="date" value="${today()}">
-  <select id="fu-mem">${opts(memberList(), S.user.uid)}</select><input id="fu-rem" placeholder="${esc(t("optional"))}">
-  <button class="btn primary block" id="fu-save" type="button">${t("confirm")}</button>
-  <h3 style="margin-top:16px">${t("records")}</h3>${list.length ? list.map((txn) => `<div class="list-row"><span>${txn.type === "withdraw" ? t("withdraw") : t("deposit")} · ${esc(memberName(txn.memberUid))}<br><span class="muted">${esc(txn.date || "")} ${esc(txn.remark || "")}</span></span><span>${txn.type === "withdraw" ? "-" : "+"}${fmt(txn.amount)} <button class="del" type="button" data-tid="${txn.id}">${t("delete")}</button></span></div>`).join("") : `<div class="muted">${t("noRecords")}</div>`}
-  <button class="btn block" id="fu-close" type="button">${t("close")}</button>`);
-  bindMoneyInput($("#fu-amt"), 0);
-  let type = "deposit";
-  $("#fu-type").querySelectorAll("button").forEach((b) => (b.onclick = () => { type = b.dataset.t; $("#fu-type").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }));
-  $("#fu-close").onclick = closeModal;
-  $("#fu-edit").onclick = () => openFundForm(f);
-  $("#fu-del").onclick = async () => {
+  if (f) $("#fd-del").onclick = () => {
     if (!confirm(t("confirmDeleteFund"))) return;
-    const b = writeBatch(db); tx.forEach((txn) => b.delete(doc(wsRef("funds", f.id, "txns"), txn.id))); b.delete(doc(wsRef("funds"), f.id));
-    b.commit().catch((x) => toast(errMsg(x))); closeModal();
+    const b = writeBatch(db);
+    (S.txns[f.id] || []).forEach((x) => b.delete(doc(wsRef("funds", f.id, "txns"), x.id)));
+    b.delete(doc(wsRef("funds"), f.id));
+    b.commit().catch((x) => toast(errMsg(x)));
+    S.fundId = null; closeModal(); renderFunds();
   };
-  $("#fu-save").onclick = () => {
-    const amount = readMoneyInput($("#fu-amt"));
-    if (!(amount > 0)) return toast(t("needAmount"));
-    addDoc(wsRef("funds", f.id, "txns"), { type, amount, date: $("#fu-date").value || today(), memberUid: $("#fu-mem").value, remark: $("#fu-rem").value.trim(), createdAt: serverTimestamp() }).catch((x) => toast(errMsg(x)));
-    toast(t("recorded")); setTimeout(() => openFund(f.id), 150);
-  };
-  $("#sheet").querySelectorAll("[data-tid]").forEach((a) => (a.onclick = () => { if (confirm(t("confirmDeleteTxn"))) { deleteDoc(doc(wsRef("funds", f.id, "txns"), a.dataset.tid)).catch((x) => toast(errMsg(x))); setTimeout(() => openFund(f.id), 150); } }));
 }
 
 /* ---------- Trips (AA split with friends) ----------
@@ -1994,9 +2154,7 @@ function tripCalcForm(tr, it, title, fieldsHtml, onReady, onSave) {
     if (hooks.onAmount) hooks.onAmount(isNaN(v) ? 0 : Math.max(0, v));
   };
   const save = () => { const v = calcValue(calc); if (!(v > 0)) return toast(t("needAmount")); onSave(v); };
-  calcKeys = (k) => { if (k === "save") return save(); calcPress(calc, k); paint(); };
-  $("#sheet").querySelectorAll(".calc [data-k]").forEach((b) => (b.onclick = () => calcKeys(b.dataset.k)));
-  $("#f-save").onclick = save;
+  bindCalcPad(calc, paint, save);
   $("#f-cancel").onclick = closeModal;
   if (it) $("#f-del").onclick = () => { if (!confirm(t("confirmDeleteItem"))) return; deleteDoc(doc(wsRef("trips", tr.id, "items"), it.id)).catch((x) => toast(errMsg(x))); closeModal(); };
   onReady(hooks);
@@ -2391,3 +2549,5 @@ function renderSettings() {
 
 setTheme(S.theme, false);
 setLang(S.lang, false);
+document.querySelectorAll("[data-tabung]").forEach((el) => { el.innerHTML = tabungSvg(1); });
+$("#fd-new").onclick = () => openFundForm(null);
