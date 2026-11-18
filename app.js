@@ -318,6 +318,7 @@ const I18N_ROWS = [
   ["balanceNow", "目前余额 {amount}", "Balance now {amount}"],
   ["withdrawOver", "取出的金额比余额还多，确定吗？", "That's more than the balance. Withdraw anyway?"],
   ["deleteFund", "删除基金", "Delete fund"],
+  ["backAgain", "再按一次返回键退出", "Press back again to exit"],
   ["typeLabel", "收支", "Type"],
   ["typeExpense", "支出", "Expense"],
   ["typeIncome", "收入", "Income"],
@@ -933,6 +934,74 @@ function openRecurringForm(r) {
   }
 }
 
+/* ---------- Icons ----------
+   One hand-drawn set for the forest themes: rounded 1.8px strokes in the current text
+   colour, with a soft "duotone" fill (.d) that brightens on the active tab. */
+const ICON_PATHS = {
+  home: '<path class="d" d="M5.5 10.2 12 5l6.5 5.2V20h-13z"/><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-4.6a2 2 0 0 1 4 0V20"/><path d="M16.2 6.6V4.4h2v3.8"/>',
+  report: '<rect class="d" x="4" y="11" width="4" height="9" rx="1.2"/><rect class="d" x="10" y="5" width="4" height="15" rx="1.2"/><rect class="d" x="16" y="8" width="4" height="12" rx="1.2"/><rect x="4" y="11" width="4" height="9" rx="1.2"/><rect x="10" y="5" width="4" height="15" rx="1.2"/><rect x="16" y="8" width="4" height="12" rx="1.2"/>',
+  trips: '<path class="d" d="M3.5 20 12 6l8.5 14z"/><path d="M3.5 20 12 6l8.5 14z"/><path d="M12 6 10.4 3.5M12 6l1.6-2.5"/><path d="M9.6 20 12 15.6l2.4 4.4"/><path d="M2 20h20"/>',
+  settings: '<path class="d" d="M18.99 10.29L21.46 10.38L21.46 13.62L18.99 13.71L18.65 14.76L18.16 15.74L19.84 17.54L17.54 19.84L15.74 18.16L14.76 18.65L13.71 18.99L13.62 21.46L10.38 21.46L10.29 18.99L9.24 18.65L8.26 18.16L6.46 19.84L4.16 17.54L5.84 15.74L5.35 14.76L5.01 13.71L2.54 13.62L2.54 10.38L5.01 10.29L5.35 9.24L5.84 8.26L4.16 6.46L6.46 4.16L8.26 5.84L9.24 5.35L10.29 5.01L10.38 2.54L13.62 2.54L13.71 5.01L14.76 5.35L15.74 5.84L17.54 4.16L19.84 6.46L18.16 8.26L18.65 9.24Z"/><path d="M18.99 10.29L21.46 10.38L21.46 13.62L18.99 13.71L18.65 14.76L18.16 15.74L19.84 17.54L17.54 19.84L15.74 18.16L14.76 18.65L13.71 18.99L13.62 21.46L10.38 21.46L10.29 18.99L9.24 18.65L8.26 18.16L6.46 19.84L4.16 17.54L5.84 15.74L5.35 14.76L5.01 13.71L2.54 13.62L2.54 10.38L5.01 10.29L5.35 9.24L5.84 8.26L4.16 6.46L6.46 4.16L8.26 5.84L9.24 5.35L10.29 5.01L10.38 2.54L13.62 2.54L13.71 5.01L14.76 5.35L15.74 5.84L17.54 4.16L19.84 6.46L18.16 8.26L18.65 9.24Z"/><circle cx="12" cy="12" r="3"/>',
+  receipt: '<path class="d" d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z"/><path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/>',
+  camera: '<rect class="d" x="3" y="7" width="18" height="13" rx="3"/><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8.5 7 10 4.5h4L15.5 7"/><circle cx="12" cy="13.5" r="3.4"/>',
+  trash: '<path class="d" d="M6.2 7.5h11.6l-.9 12.5H7.1z"/><path d="M4 7.5h16M9.5 7.5V4.5h5v3"/><path d="M6.2 7.5l.9 12.5h9.8l.9-12.5"/><path d="M10.2 11v5.5M13.8 11v5.5"/>',
+  close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  edit: '<path class="d" d="M4.5 19.5h3.8L19 8.8 15.2 5 4.5 15.7z"/><path d="M4.5 19.5h3.8L19 8.8 15.2 5 4.5 15.7z"/><path d="M13.3 6.9l3.8 3.8"/>',
+  calc: '<rect class="d" x="5" y="3" width="14" height="18" rx="3"/><rect x="5" y="3" width="14" height="18" rx="3"/><rect x="8" y="6" width="8" height="3.4" rx="1"/><path d="M8.8 13h.01M12 13h.01M15.2 13h.01M8.8 17h.01M12 17h.01M15.2 17h.01" stroke-width="2.4"/>',
+  back: '<path class="d" d="M9 5h10.5a1.5 1.5 0 0 1 1.5 1.5v11a1.5 1.5 0 0 1-1.5 1.5H9L3 12z"/><path d="M9 5h10.5a1.5 1.5 0 0 1 1.5 1.5v11a1.5 1.5 0 0 1-1.5 1.5H9L3 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>',
+  repeat: '<path d="M4 11.5V10a3.5 3.5 0 0 1 3.5-3.5H19"/><path d="M16 3.5l3 3-3 3"/><path d="M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H5"/><path d="M8 20.5l-3-3 3-3"/>',
+  leaf: '<path class="d" d="M5 19c0-8.3 6-14 15-14 0 9-5.7 15-14 15z"/><path d="M5 19c0-8.3 6-14 15-14 0 9-5.7 15-14 15z"/><path d="M5 19l9-9"/>',
+  book: '<path class="d" d="M5 6a2 2 0 0 1 2-2h11v13H7a2 2 0 0 0-2 2z"/><path d="M5 19V6a2 2 0 0 1 2-2h11v13H7a2 2 0 0 0-2 2 2 2 0 0 0 2 2h11"/><path d="M9 8.5h5"/>',
+  tag: '<path class="d" d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.6 8.6a1.4 1.4 0 0 1 0 2l-6.6 6.6a1.4 1.4 0 0 1-2 0z"/><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.6 8.6a1.4 1.4 0 0 1 0 2l-6.6 6.6a1.4 1.4 0 0 1-2 0z"/><circle cx="8" cy="8" r="1.5"/>',
+  wallet: '<rect class="d" x="3" y="6.5" width="18" height="13.5" rx="3"/><rect x="3" y="6.5" width="18" height="13.5" rx="3"/><path d="M6 6.5 15 3.5l1.2 3"/><path d="M21 11h-4.5a2.25 2.25 0 0 0 0 4.5H21"/><path d="M16.6 13.25h.01" stroke-width="2.4"/>',
+  card: '<rect class="d" x="3" y="5" width="18" height="14" rx="3"/><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 9.5h18M7 15h4"/>',
+  people: '<circle class="d" cx="9" cy="8" r="3.5"/><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.2 14.2A5 5 0 0 1 21.5 19.5"/>',
+  door: '<path class="d" d="M5 3.5h8v17H5z"/><path d="M13 3.5H5v17h8"/><path d="M10 12h10.5M17.5 8.8l3 3.2-3 3.2"/>',
+  jar: '<path class="d" d="M6.5 7h11l1 2.8v9a2.2 2.2 0 0 1-2.2 2.2H7.7a2.2 2.2 0 0 1-2.2-2.2v-9z"/><rect x="7" y="3" width="10" height="4" rx="1.2"/><path d="M6.5 7h11l1 2.8v9a2.2 2.2 0 0 1-2.2 2.2H7.7a2.2 2.2 0 0 1-2.2-2.2v-9z"/><circle cx="12" cy="14.2" r="2.6"/>',
+  settle: '<path d="M4 8.5h14.5"/><path d="M15 5l3.5 3.5L15 12"/><path d="M20 15.5H5.5"/><path d="M9 12l-3.5 3.5L9 19"/>',
+  chevL: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  chevR: '<path d="M9.5 5.5 16 12l-6.5 6.5"/>',
+  down: '<path d="M12 4.5v13.5M6.5 12.5 12 18l5.5-5.5"/>',
+  up: '<path d="M12 19.5V6M6.5 11.5 12 6l5.5 5.5"/>'
+};
+function I(name, cls = "") {
+  return `<svg class="ico${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name] || ""}</svg>`;
+}
+
+/* ---------- Back button / gesture ----------
+   A one-page app has a single history entry, so Android's back used to close the app
+   from anywhere. A "guard" entry now sits on top while signed in. Back closes the top
+   layer (photo → sheet → + menu → trip/fund detail → other tab to Home). On Home with
+   nothing open it asks once; a second back within 2 seconds leaves the app. */
+const backNav = { guard: false, armed: false, timer: 0 };
+function atRoot() {
+  return $("#modal").classList.contains("hidden") && !document.body.classList.contains("fan-open") && S.page === "home";
+}
+function syncBack() {
+  if (backNav.guard || !S.user) return;
+  if (backNav.armed && atRoot()) return;
+  try { history.pushState({ guard: 1 }, ""); backNav.guard = true; } catch (e) {}
+}
+function closeTop() {
+  const lb = $("#sheet .lightbox");
+  if (lb) { lb.remove(); return true; }
+  if (!$("#modal").classList.contains("hidden")) { closeModal(); return true; }
+  if (document.body.classList.contains("fan-open")) { setFan(false); return true; }
+  if (S.page === "trips" && S.tripId) { S.tripId = null; renderTrips(); return true; }
+  if (S.page === "funds" && S.fundId) { S.fundId = null; S.fundHist = "all"; renderFunds(); return true; }
+  if (S.page !== "home") { showPage("home"); return true; }
+  return false;
+}
+window.addEventListener("popstate", () => {
+  backNav.guard = false;
+  if (!S.user) return;
+  if (closeTop()) { backNav.armed = false; syncBack(); return; }
+  backNav.armed = true;
+  toast(t("backAgain"));
+  clearTimeout(backNav.timer);
+  backNav.timer = setTimeout(() => { backNav.armed = false; syncBack(); }, 2000);
+});
+
 /* ---------- Navigation ---------- */
 function showPage(p) {
   S.page = p;
@@ -961,6 +1030,7 @@ function setFan(open) {
   $("#fab").setAttribute("aria-expanded", open ? "true" : "false");
   $("#fab").setAttribute("aria-label", open ? t("close") : t("addExpense"));
   $("#fan").setAttribute("aria-hidden", open ? "false" : "true");
+  syncBack();
 }
 $("#fab").onclick = () => setFan(!document.body.classList.contains("fan-open"));
 $("#fan").onclick = (e) => { if (e.target.id === "fan") setFan(false); };
@@ -988,7 +1058,7 @@ $("#ws-btn").onclick = openWsPicker;
 $("#me-btn").onclick = () => openProfile();
 $("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (document.body.classList.contains("fan-open")) setFan(false); else closeModal(); } });
-function openModal(html, cls = "") { $("#sheet").className = "sheet" + (cls ? " " + cls : ""); $("#sheet").innerHTML = `<div class="grab"></div>${html}`; $("#modal").classList.remove("hidden"); document.body.classList.add("modal-open"); }
+function openModal(html, cls = "") { $("#sheet").className = "sheet" + (cls ? " " + cls : ""); $("#sheet").innerHTML = `<div class="grab"></div>${html}`; $("#modal").classList.remove("hidden"); document.body.classList.add("modal-open"); syncBack(); }
 function closeModal() { $("#modal").classList.add("hidden"); $("#sheet").innerHTML = ""; $("#sheet").className = "sheet"; document.body.classList.remove("modal-open"); calcKeys = null; }
 function onEnter(input, fn) { if (input) input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); fn(); } }; }
 
@@ -1009,7 +1079,7 @@ function renderNoWs() {
   if (el) el.classList.toggle("hidden", !S.user || !!S.wsId || S.wsList.length > 0);
 }
 function renderAll() {
-  renderTop(); syncFab(); renderNoWs();
+  renderTop(); syncFab(); renderNoWs(); syncBack();
   if (!S.user) return;
   if (S.page === "home") renderHome();
   if (S.page === "funds") renderFunds();
@@ -1399,8 +1469,8 @@ function renderHome() {
       const bubble = icon ? `<div class="ic emo" style="--c:${color}">${esc(icon)}</div>` : `<div class="ic letter" style="--c:${color};background:${color}">${esc(firstChar(cn))}</div>`;
       const info = ws()?.memberInfo?.[e.memberUid];
       const remark = e.remark ? `<div class="remark">${esc(e.remark)}</div>` : "";
-      const badge = (e.receiptId ? `<span class="receipt-tag" title="${esc(t("receipt"))}">🧾</span>` : "")
-        + (e.recurringId ? `<span class="pill" title="${esc(t("recurring"))}">🔁</span>` : "");
+      const badge = (e.receiptId ? `<span class="receipt-tag" title="${esc(t("receipt"))}">${I("receipt", "xs")}</span>` : "")
+        + (e.recurringId ? `<span class="pill" title="${esc(t("recurring"))}">${I("repeat", "xs")}</span>` : "");
       const inc = isIncome(e);
       return `<div class="item" data-id="${esc(e.id)}">${bubble}<div class="mid"><div class="ttl">${esc(cn)}${badge}</div><div class="sub">${avatarEl(info?.avatar, memberName(e.memberUid), "av xs")}<span class="txt">${esc(cardOf(e.cardId)?.name || t("unspecified"))} · ${esc(memberName(e.memberUid))}</span></div>${remark}</div><div class="amt${inc ? " in" : ""}">${inc ? "+" : "-"}${fmt(e.amount)}</div></div>`;
     }).join("") + `</div>`;
@@ -1541,7 +1611,7 @@ function calcText(st) {
 // Number pad by default (a 3×5 grid). 🧮 adds the ÷ × − + C = column for working things out.
 function calcHtml() {
   const k = (v, label, cls = "") => `<button type="button" class="ck${cls ? " " + cls : ""}" data-k="${v}">${label}</button>`;
-  return `<div class="calc" id="calc-pad">${k("7", "7")}${k("8", "8")}${k("9", "9")}${k("/", "÷", "op x")}${k("4", "4")}${k("5", "5")}${k("6", "6")}${k("*", "×", "op x")}${k("1", "1")}${k("2", "2")}${k("3", "3")}${k("-", "−", "op x")}${k("00", "00")}${k("0", "0")}${k("back", "⌫", "op")}${k("+", "+", "op x")}<button type="button" class="ck op ctoggle" data-k="calc" aria-pressed="false" aria-label="${esc(t("calculator"))}" title="${esc(t("calculator"))}">🧮</button>${k("clear", "C", "op x")}${k("=", "=", "op x")}<button type="button" class="ck save" id="f-save">${t("save")}</button></div>`;
+  return `<div class="calc" id="calc-pad">${k("7", "7")}${k("8", "8")}${k("9", "9")}${k("/", "÷", "op x")}${k("4", "4")}${k("5", "5")}${k("6", "6")}${k("*", "×", "op x")}${k("1", "1")}${k("2", "2")}${k("3", "3")}${k("-", "−", "op x")}${k("00", "00")}${k("0", "0")}${k("back", I("back"), "op")}${k("+", "+", "op x")}<button type="button" class="ck op ctoggle" data-k="calc" aria-pressed="false" aria-label="${esc(t("calculator"))}" title="${esc(t("calculator"))}">${I("calc")}</button>${k("clear", "C", "op x")}${k("=", "=", "op x")}<button type="button" class="ck save" id="f-save">${t("save")}</button></div>`;
 }
 function bindCalcPad(calc, paint, save) {
   const pad = $("#calc-pad");
@@ -1603,9 +1673,9 @@ function openExpense(e, presetType) {
   receiptDraft = { image: "", loading: !!(e && e.receiptId), removed: false, dirty: false, id: e?.receiptId || "" };
   openModal(`<div class="xf">
     <div class="xf-head">
-      <button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">✕</button>
+      <button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">${I("close")}</button>
       ${typeSeg("f-type", formType)}
-      ${e ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">🗑</button>` : `<span class="icon-btn ghost"></span>`}
+      ${e ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">${I("trash")}</button>` : `<span class="icon-btn ghost"></span>`}
     </div>
     <div class="xf-amt" id="f-amt-box"><span class="xf-sym">${esc(sym)}</span><div class="xf-nums"><div class="xf-expr" id="f-expr"></div><div class="xf-val" id="f-val">0.00</div></div></div>
     <div class="xf-grid">
@@ -1617,8 +1687,8 @@ function openExpense(e, presetType) {
     <div class="xf-row">
       <textarea id="f-rem" rows="1" maxlength="500" placeholder="${esc(t("remark"))} · ${esc(t("optional"))}">${esc(e?.remark || "")}</textarea>
       <div id="receipt-box" class="xf-receipt hidden"></div>
-      <button type="button" class="icon-btn" id="r-pick" aria-label="${esc(t("receipt"))}" title="${esc(t("receipt"))}">📷</button>
-      ${e ? "" : `<button type="button" class="chip-toggle" id="f-repeat" aria-pressed="false">🔁 <span id="f-repeat-l">${t("monthlyShort")}</span></button>`}
+      <button type="button" class="icon-btn" id="r-pick" aria-label="${esc(t("receipt"))}" title="${esc(t("receipt"))}">${I("camera")}</button>
+      ${e ? "" : `<button type="button" class="chip-toggle" id="f-repeat" aria-pressed="false">${I("repeat", "sm")} <span id="f-repeat-l">${t("monthlyShort")}</span></button>`}
     </div>
     <input id="r-file" type="file" accept="image/*" class="hidden">
     ${calcHtml()}
@@ -1831,10 +1901,10 @@ function renderFundDetail(f) {
     return `<div class="day-h"><span>${esc(label)}</span><span class="day-sum">${inn ? `<span class="in">+${fmt(inn)}</span>` : ""}${out ? `<span>-${fmt(out)}</span>` : ""}</span></div><div class="card list-card">` + list.map((x) => {
       const w = x.type === "withdraw";
       const d = validYmd(x.date || "") ? new Date(x.date + "T00:00:00") : null;
-      return `<div class="item hist-row" data-tx="${esc(x.id)}"><div class="hist-ic ${w ? "out" : "in"}">${w ? "↑" : "↓"}</div><div class="mid"><div class="ttl">${w ? t("withdraw") : t("deposit")} <span class="hist-who">${avatarEl(ws()?.memberInfo?.[x.memberUid]?.avatar, memberName(x.memberUid), "av xs")}${esc(memberName(x.memberUid))}</span></div>${x.remark ? `<div class="remark">${esc(x.remark)}</div>` : ""}<div class="sub"><span class="txt">${d ? esc(dayLabel(x.date)) : ""}</span></div></div><div class="amt${w ? "" : " in"}">${w ? "-" : "+"}${fmt(x.amount)}</div></div>`;
+      return `<div class="item hist-row" data-tx="${esc(x.id)}"><div class="hist-ic ${w ? "out" : "in"}">${I(w ? "up" : "down")}</div><div class="mid"><div class="ttl">${w ? t("withdraw") : t("deposit")} <span class="hist-who">${avatarEl(ws()?.memberInfo?.[x.memberUid]?.avatar, memberName(x.memberUid), "av xs")}${esc(memberName(x.memberUid))}</span></div>${x.remark ? `<div class="remark">${esc(x.remark)}</div>` : ""}<div class="sub"><span class="txt">${d ? esc(dayLabel(x.date)) : ""}</span></div></div><div class="amt${w ? "" : " in"}">${w ? "-" : "+"}${fmt(x.amount)}</div></div>`;
     }).join("") + `</div>`;
   }).join("") : `<div class="empty">${t("noRecords")}</div>`;
-  $("#fund-list").innerHTML = `<div class="trip-top"><button class="btn small" id="fd-back" type="button">‹ ${t("allFunds")}</button><button class="btn small" id="fd-edit" type="button">✏️ ${t("edit")}</button></div>
+  $("#fund-list").innerHTML = `<div class="trip-top"><button class="btn small" id="fd-back" type="button">${I("chevL", "sm")} ${t("allFunds")}</button><button class="btn small" id="fd-edit" type="button">${I("edit", "sm")} ${t("edit")}</button></div>
     <div class="card hero fund-detail-hero">
       <div class="fund-big">${tabungSvg(st.target ? st.pct : 1)}${st.target ? `<span class="fund-big-pct">${Math.floor(Math.min(st.pct, 9.99) * 100)}%</span>` : ""}</div>
       <div class="trip-title">${esc(f.name)}</div>
@@ -1842,7 +1912,7 @@ function renderFundDetail(f) {
       ${st.target ? `<div class="fund-hero-bar">${budgetBarFund(st.pct)}</div>` : ""}
       <p class="fund-goal-line">${esc(fundGoalLine(f, st))}</p>
     </div>
-    <div class="trip-actions"><button class="btn primary" id="fd-in" type="button">↓ ${t("deposit")}</button><button class="btn" id="fd-out" type="button">↑ ${t("withdraw")}</button></div>
+    <div class="trip-actions"><button class="btn primary" id="fd-in" type="button">${I("down", "sm")} ${t("deposit")}</button><button class="btn" id="fd-out" type="button">${I("up", "sm")} ${t("withdraw")}</button></div>
     <div class="card"><b class="sec-title">${t("contributions")}</b>${contrib}</div>
     <div class="sec-head list-title"><b class="sec-title">${t("records")}</b><div class="seg mini" id="fd-hist">${["all", "in", "out"].map((k) => `<button type="button" data-h="${k}" class="${filter === k ? "on" : ""}">${t(k === "all" ? "histAll" : k === "in" ? "deposit" : "withdraw")}</button>`).join("")}</div></div>
     ${hist}`;
@@ -1865,9 +1935,9 @@ function openFundTxn(fundId, x, type) {
   let kind = x ? (x.type === "withdraw" ? "withdraw" : "deposit") : (type || "deposit");
   const sym = currencyOf(ws()).symbol;
   const calc = calcNew(x ? x.amount : 0);
-  const seg = `<div class="seg type-seg" id="ft-type"><button type="button" data-ty="deposit" class="${kind === "deposit" ? "on" : ""}">↓ ${t("deposit")}</button><button type="button" data-ty="withdraw" class="${kind === "withdraw" ? "on" : ""}">↑ ${t("withdraw")}</button></div>`;
+  const seg = `<div class="seg type-seg" id="ft-type"><button type="button" data-ty="deposit" class="${kind === "deposit" ? "on" : ""}">${I("down", "xs")} ${t("deposit")}</button><button type="button" data-ty="withdraw" class="${kind === "withdraw" ? "on" : ""}">${I("up", "xs")} ${t("withdraw")}</button></div>`;
   openModal(`<div class="xf">
-    <div class="xf-head"><button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">✕</button>${seg}${x ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">🗑</button>` : `<span class="icon-btn ghost"></span>`}</div>
+    <div class="xf-head"><button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">${I("close")}</button>${seg}${x ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">${I("trash")}</button>` : `<span class="icon-btn ghost"></span>`}</div>
     <div class="xf-amt" id="f-amt-box"><span class="xf-sym">${esc(sym)}</span><div class="xf-nums"><div class="xf-expr" id="f-expr"></div><div class="xf-val" id="f-val">0.00</div></div></div>
     <div class="xf-grid">
       <label class="xf-field xf-wide"><span>${t("chooseFund")}</span><select id="ft-fund">${S.funds.map((f) => `<option value="${esc(f.id)}"${f.id === fundId ? " selected" : ""}>${esc(f.name)}</option>`).join("")}${x ? "" : `<option value="__new">＋ ${esc(t("newGoal"))}…</option>`}</select></label>
@@ -2018,7 +2088,7 @@ function renderTripList(box) {
       const st = tripStats(tr);
       const ppl = (tr.people || []).slice(0, 6).map((p) => `<span class="av xs letter">${esc(firstChar(p.name))}</span>`).join("");
       return `<div class="card trip-card${tr.done ? " done" : ""}" data-trip="${esc(tr.id)}"><div class="trip-ic">${esc(safeIcon(tr.icon) || "✈️")}</div><div class="grow"><div class="trip-name"><b>${esc(tr.name)}</b>${tr.done ? `<span class="pill">${t("tripEnded")}</span>` : ""}</div><div class="trip-ppl">${ppl}<span class="muted">${t("people", { n: (tr.people || []).length })}</span></div></div><div class="trip-sum"><small class="muted">${t("tripTotal")}</small><b>${fmtCur(st.spent / 100, tr.currency)}</b>${st.poolIn ? `<small class="muted">${t("pool")} ${fmtCur(st.pool / 100, tr.currency)}</small>` : ""}</div></div>`;
-    }).join("") : `<div class="card trip-empty"><div class="trip-hero-ic">🧳</div><p class="muted">${t("tripsEmpty")}</p><button class="btn primary" id="tp-new" type="button">＋ ${t("newTrip")}</button></div>`);
+    }).join("") : `<div class="card trip-empty"><div class="trip-hero-ic">${I("trips")}</div><p class="muted">${t("tripsEmpty")}</p><button class="btn primary" id="tp-new" type="button">＋ ${t("newTrip")}</button></div>`);
   $("#tp-new").onclick = () => openTripForm(null);
   box.querySelectorAll("[data-trip]").forEach((el) => (el.onclick = () => { S.tripId = el.dataset.trip; window.scrollTo(0, 0); renderTrips(); }));
 }
@@ -2029,10 +2099,10 @@ function tripItemLine(tr, it) {
     const among = (it.among || []).filter((id) => people.some((p) => p.id === id));
     const n = among.length || people.length;
     const who = !among.length || among.length === people.length ? t("everyone") : among.map((id) => esc(tripName(tr, id))).join("、");
-    return { ic: "🧾", title: it.title || t("tripExpense"), sub: `${it.payer === POOL ? "🫙 " + t("fromPool") : esc(tripName(tr, it.payer))} · ${who} · ${t("perHead", { amount: f(it.amount / Math.max(1, n)) })}`, amt: `-${f(it.amount)}`, cls: "" };
+    return { ic: I("receipt"), title: it.title || t("tripExpense"), sub: `${it.payer === POOL ? "🫙 " + t("fromPool") : esc(tripName(tr, it.payer))} · ${who} · ${t("perHead", { amount: f(it.amount / Math.max(1, n)) })}`, amt: `-${f(it.amount)}`, cls: "" };
   }
-  if (it.kind === "pool") return { ic: "🫙", title: t("poolIn"), sub: esc(tripName(tr, it.person)) + (it.note ? " · " + esc(it.note) : ""), amt: `+${f(it.amount)}`, cls: " in" };
-  return { ic: "🤝", title: t("settledItem"), sub: `${esc(tripName(tr, it.from))} → ${esc(tripName(tr, it.to))}`, amt: f(it.amount), cls: " flat" };
+  if (it.kind === "pool") return { ic: I("jar"), title: t("poolIn"), sub: esc(tripName(tr, it.person)) + (it.note ? " · " + esc(it.note) : ""), amt: `+${f(it.amount)}`, cls: " in" };
+  return { ic: I("settle"), title: t("settledItem"), sub: `${esc(tripName(tr, it.from))} → ${esc(tripName(tr, it.to))}`, amt: f(it.amount), cls: " flat" };
 }
 function renderTripDetail(box, tr) {
   const st = tripStats(tr), f = (c) => fmtCur(c / 100, tr.currency);
@@ -2050,12 +2120,12 @@ function renderTripDetail(box, tr) {
     const l = tripItemLine(tr, it);
     return `<div class="item" data-item="${esc(it.id)}"><div class="ic emo">${l.ic}</div><div class="mid"><div class="ttl">${esc(l.title)}</div><div class="sub"><span class="txt">${l.sub}</span></div></div><div class="amt${l.cls}">${l.amt}</div></div>`;
   }).join("") + `</div>`).join("");
-  box.innerHTML = `<div class="trip-top"><button class="btn small" id="tp-back" type="button">‹ ${t("allTrips")}</button><button class="btn small" id="tp-edit" type="button">✏️ ${t("edit")}</button></div>
+  box.innerHTML = `<div class="trip-top"><button class="btn small" id="tp-back" type="button">${I("chevL", "sm")} ${t("allTrips")}</button><button class="btn small" id="tp-edit" type="button">${I("edit", "sm")} ${t("edit")}</button></div>
     <div class="card hero trip-hero"><div class="trip-title">${esc(safeIcon(tr.icon) || "✈️")} ${esc(tr.name)}${tr.done ? ` <span class="pill">${t("tripEnded")}</span>` : ""}</div>
       <div class="total"><span>${t("tripTotal")}</span><b>${f(st.spent)}</b><em>${esc(tr.currency || currencyOf(ws()).code)}</em></div>
       <div class="hero-stats"><div><span>${t("poolBalance")}</span><b>${f(st.pool)}</b></div><div><span>${t("tripPeople")}</span><b>${people.length}</b></div></div></div>
-    <div class="trip-actions"><button class="btn primary" id="tp-exp" type="button">🧾 ${t("addTripExpense")}</button><button class="btn" id="tp-pool" type="button">🫙 ${t("addPool")}</button></div>
-    <div class="card"><b class="sec-title">🤝 ${t("settleTitle")}</b>${moves}</div>
+    <div class="trip-actions"><button class="btn primary" id="tp-exp" type="button">${I("receipt", "sm")} ${t("addTripExpense")}</button><button class="btn" id="tp-pool" type="button">${I("jar", "sm")} ${t("addPool")}</button></div>
+    <div class="card"><b class="sec-title ico-title">${I("settle", "sm")} ${t("settleTitle")}</b>${moves}</div>
     <div class="card"><b class="sec-title">${t("perPerson")}</b><div class="pp-row head"><span></span><span>${t("shareCol")}</span><span>${t("paidCol")}</span><span>${t("netCol")}</span></div>${rows}</div>
     <b class="sec-title list-title">${t("tripItems")}</b>${list || `<div class="empty">${t("tripNoItems")}</div>`}`;
   $("#tp-back").onclick = () => { S.tripId = null; renderTrips(); };
@@ -2140,7 +2210,7 @@ function tripCalcForm(tr, it, title, fieldsHtml, onReady, onSave) {
   const cur = CURRENCIES.find((c) => c.code === tr.currency) || currencyOf(ws());
   const calc = calcNew(it ? it.amount : 0);
   openModal(`<div class="xf">
-    <div class="xf-head"><button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">✕</button><b class="xf-title">${esc(title)}</b>${it ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">🗑</button>` : `<span class="icon-btn ghost"></span>`}</div>
+    <div class="xf-head"><button type="button" class="icon-btn" id="f-cancel" aria-label="${esc(t("close"))}">${I("close")}</button><b class="xf-title">${esc(title)}</b>${it ? `<button type="button" class="icon-btn danger" id="f-del" aria-label="${esc(t("delete"))}">${I("trash")}</button>` : `<span class="icon-btn ghost"></span>`}</div>
     <div class="xf-amt" id="f-amt-box"><span class="xf-sym">${esc(cur.symbol)}</span><div class="xf-nums"><div class="xf-expr" id="f-expr"></div><div class="xf-val" id="f-val">0.00</div></div></div>
     ${fieldsHtml}
     ${calcHtml()}
@@ -2418,7 +2488,7 @@ function renderSettings() {
   const acc = (id, icon, title, summary, body) => `<div class="card acc${S.accOpen.has(id) ? " open" : ""}" data-acc="${id}"><button type="button" class="acc-h" aria-expanded="${S.accOpen.has(id)}"><span class="acc-ic">${icon}</span><span class="acc-t"><b>${title}</b><small>${summary}</small></span><span class="chev" aria-hidden="true"></span></button><div class="acc-b"><div class="acc-in">${body}</div></div></div>`;
   parts.push(acc("profile", avatarEl(S.profile.avatar, name, "av sm"), t("profile"), `${esc(name)} · ${esc(S.user.email || "")}`,
     `<div class="profile-card"><button id="s-avatar" class="avatar-btn" type="button">${avatarEl(S.profile.avatar, name, "av lg")}</button><div class="profile-fields"><label class="sec-title">${t("displayName")}</label><div class="inline"><input id="s-dname" maxlength="40" value="${esc(name)}"><button class="btn primary" id="s-savename" type="button">${t("save")}</button></div><div class="muted">${esc(S.user.email || "")}</div></div></div>`));
-  parts.push(acc("look", "🎨", t("appearance"), `${S.lang === "en" ? "English" : "简体中文"} · ${t("theme_" + S.theme)}`,
+  parts.push(acc("look", I("leaf"), t("appearance"), `${S.lang === "en" ? "English" : "简体中文"} · ${t("theme_" + S.theme)}`,
     `<b class="sec-title">${t("language")}</b><div class="seg" id="s-lang"><button type="button" data-lang="zh" class="${S.lang === "zh" ? "on" : ""}">简体中文</button><button type="button" data-lang="en" class="${S.lang === "en" ? "on" : ""}">English</button></div><b class="sec-title blk">${t("theme")}</b><div class="themes">${THEMES.map((id) => `<button type="button" class="theme-opt${S.theme === id ? " on" : ""}" data-theme-pick="${id}"><i class="swatch ${id}"></i><span>${t("theme_" + id)}</span></button>`).join("")}</div><p class="muted">${t("prefsKept")}</p>`));
   if (!w) parts.push(`<div class="card empty">${t("noWs")}</div>`);
   else {
@@ -2430,27 +2500,27 @@ function renderSettings() {
     };
     const cardRow = (c) => `<div class="list-row"><span class="grow">${esc(c.name)}</span><button class="del" type="button" data-k="cards" data-id="${c.id}">${t("delete")}</button></div>`;
     const budget = Number(w.budget) || 0;
-    parts.push(acc("ws", "📒", t("wsSettings"), `${esc(w.name)} · ${esc(currencyOf(w).code)} · ${budget ? t("budget") + " " + fmt(budget) : t("noBudget")}`,
+    parts.push(acc("ws", I("book"), t("wsSettings"), `${esc(w.name)} · ${esc(currencyOf(w).code)} · ${budget ? t("budget") + " " + fmt(budget) : t("noBudget")}`,
       `<b class="sec-title">${t("wsName")}</b><div class="inline"><input id="s-name" value="${esc(w.name)}"><button class="btn primary" id="s-rename" type="button">${t("save")}</button></div><label class="sec-title">${t("currency")}</label><select id="s-cur">${currencyOptions(currencyOf(w).code)}</select><div class="muted">${t("currencyHint")}</div><label class="sec-title blk" for="s-budget">${t("monthlyBudget")} (${esc(currencyOf(w).symbol)})</label><div class="inline"><input id="s-budget" type="text" inputmode="numeric" autocomplete="off"><button class="btn primary" id="s-savebudget" type="button">${t("save")}</button></div><div class="muted">${t("budgetHint")}</div>`));
     const expCats = S.cats.filter((c) => catKind(c) === "expense"), incCats = S.cats.filter((c) => catKind(c) === "income");
     const catNames = (list) => list.slice(0, 4).map((c) => esc(catLabel(c))).join("、") + (list.length > 4 ? " …" : "");
-    parts.push(acc("expcats", "🧾", t("expenseCats"), `${t("countN", { n: expCats.length })}${expCats.length ? " · " + catNames(expCats) : ""}`,
+    parts.push(acc("expcats", I("tag"), t("expenseCats"), `${t("countN", { n: expCats.length })}${expCats.length ? " · " + catNames(expCats) : ""}`,
       `<p class="muted">${t("dragHint")}</p><div class="sortable" data-kind="expense">${expCats.map(catRow).join("")}</div><button class="btn block" id="s-addcat" type="button">${t("add")}</button>`));
-    parts.push(acc("inccats", "💼", t("incomeCats"), `${t("countN", { n: incCats.length })}${incCats.length ? " · " + catNames(incCats) : ""}`,
+    parts.push(acc("inccats", I("wallet"), t("incomeCats"), `${t("countN", { n: incCats.length })}${incCats.length ? " · " + catNames(incCats) : ""}`,
       `<p class="muted">${t("dragHint")}</p><div class="sortable" data-kind="income">${incCats.map(catRow).join("")}</div><button class="btn block" id="s-addinc" type="button">${t("add")}</button>`));
     const recRow = (r) => {
       const c = catOf(r.categoryId);
       const label = r.remark || (c ? c.name : t("uncategorized"));
       const inc = r.type === "income";
-      return `<div class="list-row rec-row" data-rec="${esc(r.id)}"><span class="ic-pick">${esc(safeIcon(c?.icon) || "🔁")}</span><span class="grow"><b class="rec-name">${esc(label)}</b><span class="muted">${r.active === false ? `<span class="pill">${t("paused")}</span> ` : ""}${t("everyMonthDay", { day: Number(r.day) || 1 })}${r.active === false ? "" : " · " + t("recurNext", { date: esc(nextRecurDate(r)) })}</span></span><span class="amt-s${inc ? " in" : ""}">${inc ? "+" : "-"}${fmt(r.amount)}</span></div>`;
+      return `<div class="list-row rec-row" data-rec="${esc(r.id)}"><span class="ic-pick">${safeIcon(c?.icon) ? esc(safeIcon(c.icon)) : I("repeat")}</span><span class="grow"><b class="rec-name">${esc(label)}</b><span class="muted">${r.active === false ? `<span class="pill">${t("paused")}</span> ` : ""}${t("everyMonthDay", { day: Number(r.day) || 1 })}${r.active === false ? "" : " · " + t("recurNext", { date: esc(nextRecurDate(r)) })}</span></span><span class="amt-s${inc ? " in" : ""}">${inc ? "+" : "-"}${fmt(r.amount)}</span></div>`;
     };
     const paused = S.recurring.filter((r) => r.active === false).length;
-    parts.push(acc("rec", "🔁", t("recurring"), t("countN", { n: S.recurring.length }) + (paused ? ` · ${t("paused")} ${paused}` : ""),
+    parts.push(acc("rec", I("repeat"), t("recurring"), t("countN", { n: S.recurring.length }) + (paused ? ` · ${t("paused")} ${paused}` : ""),
       `${S.recurring.length ? S.recurring.map(recRow).join("") : `<p class="muted">${t("recurringEmpty")}</p>`}<button class="btn block" id="s-addrec" type="button">${t("add")}</button>`));
-    parts.push(acc("cards", "💳", t("cards"), `${t("countN", { n: S.cards.length })}${S.cards.length ? " · " + S.cards.slice(0, 3).map((c) => esc(c.name)).join("、") : ""}`,
+    parts.push(acc("cards", I("card"), t("cards"), `${t("countN", { n: S.cards.length })}${S.cards.length ? " · " + S.cards.slice(0, 3).map((c) => esc(c.name)).join("、") : ""}`,
       `${S.cards.map(cardRow).join("")}<div class="inline"><input id="s-card" placeholder="${esc(t("newCardPh"))}"><button class="btn primary" id="s-addcard" type="button">${t("add")}</button></div>`));
     const pend = (w.invitedEmails || []).length;
-    parts.push(acc("members", "👥", t("members"), t("people", { n: (w.members || []).length }) + (pend ? ` · ${t("pending")} ${pend}` : ""),
+    parts.push(acc("members", I("people"), t("members"), t("people", { n: (w.members || []).length }) + (pend ? ` · ${t("pending")} ${pend}` : ""),
       `${(w.members || []).map((uid) => `<div class="list-row"><span class="who">${avatarEl(w.memberInfo?.[uid]?.avatar, memberName(uid), "av")}<span class="meta">${esc(memberName(uid))}${uid === w.ownerUid ? ` <span class="muted">（${t("owner")}）</span>` : ""}<span class="muted em">${esc(w.memberInfo?.[uid]?.email || "")}</span></span></span>${isOwner && uid !== w.ownerUid ? `<button class="del" type="button" data-rm="${uid}">${t("remove")}</button>` : ""}</div>`).join("")}
       ${(w.invitedEmails || []).map((em) => `<div class="list-row"><span class="muted grow">⏳ ${esc(em)}（${t("pending")}）</span><button class="btn small" type="button" data-share="${esc(em)}">${t("copyInvite")}</button> <button class="del" type="button" data-unv="${esc(em)}">${t("revoke")}</button></div>`).join("")}
       <div class="inline"><input id="s-inv" type="email" placeholder="${esc(t("invitePh"))}"><button class="btn primary" id="s-invite" type="button">${t("invite")}</button></div>
@@ -2458,7 +2528,7 @@ function renderSettings() {
       <textarea id="s-share" rows="4" readonly>${esc(S.inviteText || "")}</textarea>
       <div class="btns"><button class="btn" id="s-copy" type="button">${t("copyInvite")}</button><button class="btn primary" id="s-send" type="button">${t("shareInvite")}</button></div>`));
   }
-  parts.push(acc("account", "🚪", t("account"), w ? (w.ownerUid === S.user.uid ? t("accountSumOwner") : t("accountSumMember")) : t("logout"),
+  parts.push(acc("account", I("door"), t("account"), w ? (w.ownerUid === S.user.uid ? t("accountSumOwner") : t("accountSumMember")) : t("logout"),
     `${w ? (w.ownerUid === S.user.uid ? `<button class="btn danger block" id="s-delete-ws" type="button">${t("deleteWs")}</button>` : `<button class="btn danger block" id="s-leave" type="button">${t("leaveWs")}</button>`) : ""}<button class="btn block" id="s-logout" type="button">${t("logout")}</button>`));
   // Data from other members re-renders this page. Keep whatever the user is typing.
   const typed = {};
@@ -2550,4 +2620,5 @@ function renderSettings() {
 setTheme(S.theme, false);
 setLang(S.lang, false);
 document.querySelectorAll("[data-tabung]").forEach((el) => { el.innerHTML = tabungSvg(1); });
+document.querySelectorAll("[data-icon]").forEach((el) => { el.innerHTML = I(el.dataset.icon); });
 $("#fd-new").onclick = () => openFundForm(null);
